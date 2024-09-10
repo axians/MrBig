@@ -168,7 +168,7 @@ static BOOL disp_message(char *log, char *source_name, char *entry_name,
 			(va_list *)args);
 	}
 
-	FormatMessage(
+	DWORD messageLength = FormatMessage(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER |
 		FORMAT_MESSAGE_FROM_HMODULE |
 		FORMAT_MESSAGE_ARGUMENT_ARRAY,
@@ -178,8 +178,13 @@ static BOOL disp_message(char *log, char *source_name, char *entry_name,
 		(LPSTR)&pMessage,
 		0,
 		(va_list *)args);
-
-	bReturn = TRUE;
+	
+	if (messageLength == 0) { // FormatMessage errored
+		if (debug) mrlog("disp_message: FormatMessage failed with 0x%x", GetLastError());
+	} else {
+		if (debug) mrlog("disp_message: FormatMessage returned a message of length %u, maximum before truncation is %u", messageLength, msgsize);
+		bReturn = TRUE;
+	}
 
 Exit:
 	msgbuf[0] = '\0';
