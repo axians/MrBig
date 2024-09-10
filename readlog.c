@@ -301,7 +301,6 @@ struct event *read_log(char *log, int maxage, int fast)
 	DWORD NextSize;
 	char *cp;
 	char *pSourceName;
-	char *pComputerName;
 	HANDLE hEventLog = NULL;
 	EVENTLOGRECORD *pBuf, *pBuf0 = NULL;
 	char **args = NULL;
@@ -349,7 +348,6 @@ struct event *read_log(char *log, int maxage, int fast)
 			pSourceName = cp;
 			cp += strlen(cp)+1;
 
-			pComputerName = cp;
 			cp += strlen(cp)+1;
 
 			e->source = big_strdup("read_log (source)", pSourceName);
