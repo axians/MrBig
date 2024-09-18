@@ -339,7 +339,7 @@ FILE *big_fopen(char *p, char *file, char *mode)
 			file, mode, fp, p);
 	}
 	if (fp == NULL) {
-		mrlog("Can't open");
+		mrlog("Can't open file %s", file);
 	} else {
 		store_file(fp, p);
 	}

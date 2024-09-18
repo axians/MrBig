@@ -314,7 +314,7 @@ struct event *read_log(char *log, int maxage, int fast)
 	hEventLog = OpenEventLog(NULL, log);
 
 	if(hEventLog == NULL) {
-		mrlog("event log can not open.");
+		mrlog("read_log: Event log '%s' can not open.", log);
 		goto Exit;
 	}
 
