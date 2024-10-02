@@ -1,6 +1,6 @@
 
 PACKAGE=MrBig
-VERSION=0.26.0-rc3
+VERSION=0.26.1
 #CFLAGS=-Wall -O -g -DDEBUG
 CFLAGS=-Wall -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
