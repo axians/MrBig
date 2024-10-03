@@ -1,5 +1,31 @@
 #include "mrbig.h"
 
+long LargestArgumentIdInMessage(LPCTSTR pMessage)
+{
+    LPTSTR pTempMessage = (LPTSTR)pMessage;
+    LPTSTR pTempMessageParseEnd = NULL;
+    long argnum;
+    long maximumArgnum = 0;
+
+    // Determine the number of parameter insertion strings in pMessage.
+    while ((pTempMessage = strchr(pTempMessage, '%')))
+    {
+        pTempMessage++;
+        if (isdigit(*pTempMessage)) {
+            argnum = strtol(pTempMessage, &pTempMessageParseEnd, 10);
+            if (pTempMessage == pTempMessageParseEnd) {
+                if (debug) mrlog("events (LastArgumentInMessage): No number found at digit position. This should be impossible, since the code checks that it starts on a digit.");
+                return 0;
+            } else {
+                maximumArgnum = max(maximumArgnum, argnum);
+                pTempMessage = pTempMessageParseEnd; // We know *pTempMessage is not a digit here, so no need to consider it in the next loop iteration
+            }
+        }
+    }
+
+    return maximumArgnum;
+}
+
 static char **get_args(EVENTLOGRECORD *pBuf)
 {
 	char *cp;
@@ -101,7 +127,7 @@ Exit:
 }
 
 static BOOL disp_message(char *log, char *source_name, char *entry_name,
-	char **args, DWORD MessageId,
+	char **args, WORD nargs, DWORD MessageId,
 	char *msgbuf, size_t msgsize)
 {
 	BOOL bResult;
@@ -109,6 +135,8 @@ static BOOL disp_message(char *log, char *source_name, char *entry_name,
 	HANDLE hSourceModule = NULL;
 	char source_module_name[1000];
 	char *pMessage = NULL;
+	DWORD messageLength;
+	long nMessageArgs;
 	source_module_name[0] = '\0';
 
 	if (debug) {
@@ -152,34 +180,68 @@ static BOOL disp_message(char *log, char *source_name, char *entry_name,
 		DONT_RESOLVE_DLL_REFERENCES | LOAD_LIBRARY_AS_DATAFILE);
 
 	if (debug) {
-		mrlog("LoadLibraryEx returns %d", hSourceModule);
+		mrlog("LoadLibraryEx returns %p", hSourceModule);
 	}
 
 	if (hSourceModule == NULL) goto Exit;
 
 	if (debug) {
-		mrlog("About to call FormatMessage(%d, %d, %d, %d, %p, %d, %p)",
+		mrlog("About to call FormatMessage(%d, %p, %d, %d, %p, %d, %p)",
 			FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_ARGUMENT_ARRAY,
 			hSourceModule,
 			MessageId,
 			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 			(LPSTR)&pMessage,
 			0,
-			(va_list *)args);
+			args);
 	}
 
-	FormatMessage(
+	messageLength = FormatMessage(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER |
 		FORMAT_MESSAGE_FROM_HMODULE |
-		FORMAT_MESSAGE_ARGUMENT_ARRAY,
+		FORMAT_MESSAGE_ARGUMENT_ARRAY | 
+		FORMAT_MESSAGE_IGNORE_INSERTS,
 		hSourceModule,
 		MessageId,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 		(LPSTR)&pMessage,
 		0,
-		(va_list *)args);
+		NULL);
 
-	bReturn = TRUE;
+	if (messageLength == 0) { // FormatMessage errored
+		if (debug) mrlog("disp_message: FormatMessage failed with 0x%x", GetLastError());
+	} else {
+		nMessageArgs = LargestArgumentIdInMessage(pMessage);
+		bReturn = TRUE;
+		if (nMessageArgs != nargs) {
+			if (debug) mrlog("disp_message: FormatMessage mismatch in number of insert arguments. Expected %d, saw %d. Ignoring inserts.", nargs, nMessageArgs);
+		} else if (nMessageArgs > 0) {
+			messageLength = FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_HMODULE |
+				FORMAT_MESSAGE_ARGUMENT_ARRAY,
+				hSourceModule,
+				MessageId,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPSTR)&pMessage,
+				0,
+				args);
+			if (debug) mrlog("disp_message: FormatMessage returned a message of length %u, maximum before truncation is %u", messageLength, msgsize);
+			if (debug > 1) {
+				mrlog("FormatMessage(%d, %p, %d, %d, %p, %d, %p) = '''\n%s\n'''",
+					FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_IGNORE_INSERTS,
+					hSourceModule,
+					MessageId,
+					MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+					(LPSTR)&pMessage,
+					0,
+					args, pMessage);
+				for (WORD argi = 0; argi < nargs; argi++) {
+					mrlog("%s", args[argi]);
+				}
+			}
+		}
+	}
 
 Exit:
 	msgbuf[0] = '\0';
@@ -301,16 +363,15 @@ struct event *read_log(char *log, int maxage, int fast)
 	DWORD NextSize;
 	char *cp;
 	char *pSourceName;
-	char *pComputerName;
 	HANDLE hEventLog = NULL;
 	EVENTLOGRECORD *pBuf, *pBuf0 = NULL;
 	char **args = NULL;
-	char msgbuf[1024];
+	char msgbuf[8192];
 
 	hEventLog = OpenEventLog(NULL, log);
 
 	if(hEventLog == NULL) {
-		mrlog("event log can not open.");
+		mrlog("read_log: Event log '%s' can not open.", log);
 		goto Exit;
 	}
 
@@ -349,7 +410,6 @@ struct event *read_log(char *log, int maxage, int fast)
 			pSourceName = cp;
 			cp += strlen(cp)+1;
 
-			pComputerName = cp;
 			cp += strlen(cp)+1;
 
 			e->source = big_strdup("read_log (source)", pSourceName);
@@ -358,7 +418,7 @@ struct event *read_log(char *log, int maxage, int fast)
 
 			memset(msgbuf, 0, sizeof msgbuf);
 			disp_message(log, pSourceName, "EventMessageFile",
-				args, pBuf->EventID, msgbuf, sizeof msgbuf);
+				args, pBuf->NumStrings, pBuf->EventID, msgbuf, sizeof msgbuf);
 			e->message = big_strdup("read_log (message)", msgbuf);
 
 			big_free("read_log (args)", args);

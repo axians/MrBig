@@ -241,8 +241,8 @@ void *big_realloc(char *p, void *q, size_t n)
 	a = realloc(q, m);
 
 	if (debug > 2) {
-		mrlog("Reallocating %ld bytes (%p => %p) on behalf of %s",	
-			(long)m, q, a, p);
+		mrlog("Reallocating %ld bytes to new address %p, on behalf of %s",	
+			(long)m, a, p);
 	}
 
 	if (a == NULL) {
@@ -339,7 +339,7 @@ FILE *big_fopen(char *p, char *file, char *mode)
 			file, mode, fp, p);
 	}
 	if (fp == NULL) {
-		mrlog("Can't open");
+		mrlog("Can't open file %s", file);
 	} else {
 		store_file(fp, p);
 	}

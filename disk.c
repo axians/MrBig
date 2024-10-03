@@ -92,7 +92,7 @@ void disk(void)
 {
 	char b[5000];
 	int n = sizeof b;
-	int i, j, res;
+	int drive_letter, res;
 	double yellow, red;
 	char d[10], q[5000], r[5000], *color = "green";
 	char cfgfile[1024], drive[10];
@@ -121,11 +121,11 @@ void disk(void)
 	snprcat(q, sizeof q, "%-11s %11s %11s %11s %11s  %s\n",
 		"Filesystem", "1k-blocks", "Used", "Avail", "Capacity",
 		"Mounted");
-	for (i = 'A'; i <= 'Z'; i++) {
+	for (drive_letter = 'A'; drive_letter <= 'Z'; drive_letter++) {
 		if (drives & 1) {
 			drive[0] = d[0] = '\0';
-			snprcat(drive, sizeof drive, "%c", i);
-			snprcat(d, sizeof d, "%c:\\", i);
+			snprcat(drive, sizeof drive, "%c", drive_letter);
+			snprcat(d, sizeof d, "%c:\\", drive_letter);
 			dtype = GetDriveType(d);
 			if (debug) mrlog("%s is type %d", d, dtype);
 			if (dtype == DRIVE_FIXED) {
@@ -154,15 +154,15 @@ void disk(void)
 						color = "yellow";
 					}
 				}
-				j = 0;
+
 				/* Filesystem */
 				snprcat(q, sizeof q,
 					"%-11c % 11" PRIu64 " % 11" PRIu64 " % 11" PRIu64 " % 10.1f%%  /FIXED/%c\n",
-					i,
+					drive_letter,
 					(total_bytes / 1024),
 					((total_bytes - free_bytes) / 1024),
 					(free_bytes / 1024),
-					pct, i);
+					pct, drive_letter);
 			}
 		}
 		drives >>= 1;
