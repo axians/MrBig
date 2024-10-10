@@ -6,13 +6,13 @@ CFLAGS=-Wall -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
 SRCS=cfg.c cpu.c disk.c memory.c msgs.c procs.c svcs.c mrbig.c \
 	service.c readperf.c readlog.c ext_test.c \
-	strlcpy.c disphelper.c wmi.c
+	strlcpy.c disphelper.c wmi.c network.c clientlog.c rebootlog.c
 HDRS=mrbig.h disphelper.h
 OBJS=cfg.o cpu.o disk.o memory.o msgs.o procs.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o \
-	strlcpy.o disphelper.o wmi.o
+	strlcpy.o disphelper.o wmi.o network.o clientlog.o rebootlog.o
 NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o procsnt.o svcs.o mrbig.o \
-	service.o readperf.o readlog.o ext_test.o
+	service.o readperf.o readlog.o ext_test.o network.o clientlog.o rebootlog.o
 CFG=mrbig.cfg
 DISTCFG=mrbig.cfg.dist mrbig.cfg.minicfg
 DISTDIR=$(PACKAGE)-$(VERSION)
@@ -35,10 +35,10 @@ mrwmi.exe: $(OBJS) wmi.o disphelper.o
 	$(CC) -o mrwmi.exe $(OBJS) wmi.o disphelper.o -lws2_32 -lpsapi -lole32 -loleaut32 -luuid
 
 mrbig.exe: $(OBJS)
-	$(CC) -o mrbig.exe $(OBJS) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid
+	$(CC) -o mrbig.exe $(OBJS) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi
 
 mrbig64.exe: $(OBJS)
-	$(CC) -o mrbig64.exe $(OBJS) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid
+	$(CC) -o mrbig64.exe $(OBJS) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi
 
 mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi

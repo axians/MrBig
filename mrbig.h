@@ -42,7 +42,17 @@ extern struct event *read_log(char *log, int maxage, int fast);
 extern void free_log(struct event *e);
 extern void print_log(struct event *e);
 
-extern char mrmachine[256], bind_addr[256];
+/* from rebootlog.c */
+struct restart_event {
+    WORD wYear, wMonth, wDay, wHour, wMinute, wSecond;
+    char sReason[128], sUser[128];
+    struct restart_event *next;
+};
+typedef struct restart_event restart_event;
+extern restart_event *recent_restarts(WORD maxNumRestarts);
+
+extern char mrmachine[256],
+bind_addr[256];
 //extern char mrdisplay[256];
 extern char cfgdir[256];
 extern char now[1024];
@@ -75,10 +85,12 @@ extern void no_return(char *);
 extern void mrsend(char *machine, char *test, char *color, char *message);
 extern void mrlog(char *fmt, ...);
 extern void startup_log(char *fmt, ...);
+extern void clientlog(void);
 extern void cpu(void);
 extern void disk(void);
 extern void memory(void);
 extern void msgs(void);
+extern void port_usage(char *output);
 extern void procs(void);
 extern void svcs(void);
 extern void wmi(void);

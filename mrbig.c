@@ -1016,6 +1016,9 @@ void mrbig(void)
 			snprcat(now, sizeof now, " [%s]", hostname);
 		}
 
+		clientlog();
+		check_chunks("after clientlog test");
+
 		cpu();
 		check_chunks("after cpu test");
 
