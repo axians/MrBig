@@ -33,13 +33,13 @@ LPCTSTR osversion() {
     ZeroMemory(&version, sizeof(OSVERSIONINFOEX));
     version.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
     GetVersionEx((LPOSVERSIONINFOA)&version);
-
     // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexa
     LPTSTR osName = "(unknown)";
 
     DWORD maj = version.dwMajorVersion;
     DWORD min = version.dwMinorVersion;
     BYTE type = version.wProductType;
+    /* NB. Windows 8.1 / 10 and later do not support GetVersion or GetVersionEx, and will return Windows 8 instead
     if (maj == 10 && min == 0) {
         if (type == VER_NT_WORKSTATION)
             osName = "Windows 10";
@@ -52,11 +52,11 @@ LPCTSTR osversion() {
         else
             osName = "Windows Server 2012 R2";
 
-    } else if (maj == 6 && min == 2) {
+    } else*/ if (maj == 6 && min == 2) {
         if (type == VER_NT_WORKSTATION)
-            osName = "Windows 8";
+            osName = "Windows 8 or later";
         else
-            osName = "Windows Server 2012";
+            osName = "Windows Server 2012 or later";
 
     } else if (maj == 6 && min == 1) {
         if (type == VER_NT_WORKSTATION)
@@ -124,9 +124,10 @@ void clientlog() {
     TCHAR ports_res[OUTPUTS_BUF_SIZE];
     port_usage(ports_res);
 
+    /*
     TCHAR rebootlog_res[REBOOTLOG_BUF_SIZE];
     int rebootlogWritten = 0;
-    struct restart_event *restart = recent_restarts(5), *restartPrev;
+    struct restart_event *restart = recent_restarts(5), *restartNext;
     rebootlogWritten += snprintf(rebootlog_res, REBOOTLOG_BUF_SIZE, "%-20s\t%-24s\t%s\n", "Date", "User", "Reason");
     while (restart && rebootlogWritten < REBOOTLOG_BUF_SIZE) {
         rebootlogWritten += snprintf(&rebootlog_res[rebootlogWritten], REBOOTLOG_BUF_SIZE - rebootlogWritten,
@@ -134,13 +135,15 @@ void clientlog() {
                                      restart->wYear, restart->wMonth, restart->wDay,
                                      restart->wHour, restart->wMinute, restart->wSecond,
                                      restart->sUser, restart->sReason);
-        restartPrev = restart;
-        restart = restart->next;
-        big_free("restart event (clientlog)", restartPrev);
+
+        restartNext = restart->next;
+        big_free("restart event (clientlog)", restart);
+        restart = restartNext;
     }
+    */
 
     snprintf(resbuf, sizeof(resbuf),
              "[date]\n%s\n[osversion]\n%s\n[uptime]\n%s\n[ports]\n%s\n[reboots]\n%s",
-             date_res, osversion_res, uptime_res, ports_res, rebootlog_res);
+             date_res, osversion_res, uptime_res, ports_res, "REMOVED FOR DEBUG");
     mrsend(mrmachine, "clientlog", "green", resbuf);
 }

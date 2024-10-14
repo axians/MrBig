@@ -4,9 +4,7 @@
 /* We need to link with Iphlpapi.lib in Makefile. 
    This file also needs Ws2_32.lib, but that is a requirement for other files too */
 
-#define DYNRANGE_LOW 49152
-#define DYNRANGE_HIGH 65535
-#define DYNRANGE_N 16384
+#define MAX_PORT 0xFFFF
 
 DWORD GetTcpPortStatistics(ULONG af, LPTSTR output) {
     PMIB_TCPTABLE_OWNER_PID tcp;
@@ -32,17 +30,13 @@ DWORD GetTcpPortStatistics(ULONG af, LPTSTR output) {
         }
     }
 
-    DWORD count = 0;
-    for (DWORD i = 0; i < tcp->dwNumEntries; i++) {
-        WORD localPort = ntohs((u_short)tcp->table[i].dwLocalPort);
-        if (DYNRANGE_LOW <= localPort && localPort <= DYNRANGE_HIGH) count++;
-    }
+    DWORD numEntries = tcp->dwNumEntries;
     big_free("tcp table", tcp);
 
     LPCTSTR ipVersion = af == AF_INET ? "IPv4" : "IPv6";
-    DOUBLE percentDynamicPortsBusy = 100 * ((DOUBLE)count) / ((DOUBLE)DYNRANGE_N);
-    return sprintf(output, "%s\tTCP\t%lu\t%lu\t%lu\t%.2lf\n",
-                   ipVersion, tcp->dwNumEntries, tcp->dwNumEntries - count, count, percentDynamicPortsBusy);
+    DOUBLE percentPortsBusy = 100 * ((DOUBLE)numEntries) / ((DOUBLE)MAX_PORT);
+    return sprintf(output, "%10s    %8s    %10lu    %12.2lf\n",
+                   ipVersion, "TCP", numEntries, percentPortsBusy);
 }
 
 DWORD GetUdpPortStatistics(ULONG af, LPTSTR output) {
@@ -69,17 +63,13 @@ DWORD GetUdpPortStatistics(ULONG af, LPTSTR output) {
         }
     }
 
-    DWORD count = 0;
-    for (DWORD i = 0; i < udp->dwNumEntries; i++) {
-        WORD localPort = ntohs((u_short)udp->table[i].dwLocalPort);
-        if (DYNRANGE_LOW <= localPort && localPort <= DYNRANGE_HIGH) count++;
-    }
+    DWORD numEntries = udp->dwNumEntries;
     big_free("udp table", udp);
 
     LPCTSTR ipVersion = af == AF_INET ? "IPv4" : "IPv6";
-    DOUBLE percentDynamicPortsBusy = 100 * ((DOUBLE)count) / ((DOUBLE)DYNRANGE_N);
-    return sprintf(output, "%s\tUDP\t%lu\t%lu\t%lu\t%.2lf\n",
-                   ipVersion, udp->dwNumEntries, udp->dwNumEntries - count, count, percentDynamicPortsBusy);
+    DOUBLE percentPortsBusy = 100 * ((DOUBLE)numEntries) / ((DOUBLE)MAX_PORT);
+    return sprintf(output, "%10s    %8s    %10lu    %12.2lf\n",
+                   ipVersion, "UDP", numEntries, percentPortsBusy);
 }
 
 void port_usage(char *output) {
