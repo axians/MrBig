@@ -8,10 +8,6 @@
 
 BOOL LoadEvents(HANDLE hEventLog, EVENTLOGRECORD **lpBuffer, DWORD *pnBytesRead) {
     DWORD status, nNumberOfBytesToRead = MAX_RECORD_SIZE, pnMinNumberOfBytesNeeded;
-    EVENTLOGRECORD *reallocLogRecord;
-
-    *lpBuffer = big_malloc("lpBuffer (LoadEvents)", MAX_RECORD_SIZE);
-
     while (!ReadEventLog(hEventLog,
                          EVENTLOG_SEQUENTIAL_READ | EVENTLOG_BACKWARDS_READ,
                          0,
@@ -22,8 +18,7 @@ BOOL LoadEvents(HANDLE hEventLog, EVENTLOGRECORD **lpBuffer, DWORD *pnBytesRead)
         status = GetLastError();
         if (status == ERROR_INSUFFICIENT_BUFFER) { // Should only happen if ReadEventLog changes behavior in the future
             status = ERROR_SUCCESS;
-            reallocLogRecord = (EVENTLOGRECORD *)big_realloc("lpBuffer (LoadEvents)", *lpBuffer, pnMinNumberOfBytesNeeded);
-            *lpBuffer = reallocLogRecord;
+            *lpBuffer = (EVENTLOGRECORD *)big_realloc("lpBuffer (LoadEvents)", *lpBuffer, pnMinNumberOfBytesNeeded);
             nNumberOfBytesToRead = pnMinNumberOfBytesNeeded;
         } else {
             if (ERROR_HANDLE_EOF != status) {
@@ -51,6 +46,7 @@ restart_event *recent_restarts(WORD maxNumRestarts) {
 
     EVENTLOGRECORD *currEventLogStoppedEvent = NULL; // Event ID 6006
 
+    logEventRecords = big_malloc("logEventRecords (recent_restarts)", MAX_RECORD_SIZE);
     while (LoadEvents(systemLog, &logEventRecords, &readBytes)) {
         currEventRecord = logEventRecords;
         while (readBytes > 0 && numRestartsFound < maxNumRestarts && (currentTime - currEventRecord->TimeGenerated) < MAX_EVENT_AGE) {

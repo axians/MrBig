@@ -75,7 +75,7 @@ DWORD GetUdpPortStatistics(ULONG af, LPTSTR output) {
 void port_usage(char *output) {
     // output fits comfortably in 255 characters at the time of writing
     PCHAR outputCurr = output;
-    outputCurr += sprintf(output, "IP\tProto\tIn use\tStatic\tDynamic\tDynamic %%\n");
+    outputCurr += sprintf(outputCurr, "IP version  Protocol  Ports used  Ports used %%\n");
     outputCurr += GetTcpPortStatistics(AF_INET, outputCurr);
     outputCurr += GetUdpPortStatistics(AF_INET, outputCurr);
     outputCurr += GetTcpPortStatistics(AF_INET6, outputCurr);

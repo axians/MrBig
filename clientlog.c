@@ -4,8 +4,8 @@
 #define HOUR (60 * MINUTE)
 #define DAY (24 * HOUR)
 #define TIME_BUF_SIZE 12
-#define OUTPUTS_BUF_SIZE 255
-#define REBOOTLOG_BUF_SIZE 600
+#define OUTPUTS_BUF_SIZE 256
+#define REBOOTLOG_BUF_SIZE (3 * OUTPUTS_BUF_SIZE)
 
 enum Reportables { // TODO: Allow selection of what to report through config
     REPORT_DATE,
@@ -39,7 +39,8 @@ LPCTSTR osversion() {
     DWORD maj = version.dwMajorVersion;
     DWORD min = version.dwMinorVersion;
     BYTE type = version.wProductType;
-    /* NB. Windows 8.1 / 10 and later do not support GetVersion or GetVersionEx, and will return Windows 8 instead
+    /* NB. Windows 8.1 / 10 and later do not support GetVersion or GetVersionEx, and will return 
+       either a value from the application manifest or simply Windows 8 instead */
     if (maj == 10 && min == 0) {
         if (type == VER_NT_WORKSTATION)
             osName = "Windows 10";
@@ -52,11 +53,11 @@ LPCTSTR osversion() {
         else
             osName = "Windows Server 2012 R2";
 
-    } else*/ if (maj == 6 && min == 2) {
+    } else if (maj == 6 && min == 2) {
         if (type == VER_NT_WORKSTATION)
-            osName = "Windows 8 or later";
+            osName = "Windows 8";
         else
-            osName = "Windows Server 2012 or later";
+            osName = "Windows Server 2012";
 
     } else if (maj == 6 && min == 1) {
         if (type == VER_NT_WORKSTATION)
@@ -111,7 +112,7 @@ VOID uptime(LPTSTR out) {
 }
 
 void clientlog() {
-    TCHAR resbuf[4 * OUTPUTS_BUF_SIZE + REBOOTLOG_BUF_SIZE + 1];
+    TCHAR resbuf[8 * OUTPUTS_BUF_SIZE + 1];
 
     TCHAR date_res[OUTPUTS_BUF_SIZE];
     date(date_res);
@@ -121,10 +122,9 @@ void clientlog() {
     TCHAR uptime_res[OUTPUTS_BUF_SIZE];
     uptime(uptime_res);
 
-    TCHAR ports_res[OUTPUTS_BUF_SIZE];
+    TCHAR ports_res[2 * OUTPUTS_BUF_SIZE];
     port_usage(ports_res);
 
-    /*
     TCHAR rebootlog_res[REBOOTLOG_BUF_SIZE];
     int rebootlogWritten = 0;
     struct restart_event *restart = recent_restarts(5), *restartNext;
@@ -140,10 +140,9 @@ void clientlog() {
         big_free("restart event (clientlog)", restart);
         restart = restartNext;
     }
-    */
 
     snprintf(resbuf, sizeof(resbuf),
              "[date]\n%s\n[osversion]\n%s\n[uptime]\n%s\n[ports]\n%s\n[reboots]\n%s",
-             date_res, osversion_res, uptime_res, ports_res, "REMOVED FOR DEBUG");
+             date_res, osversion_res, uptime_res, ports_res, rebootlog_res);
     mrsend(mrmachine, "clientlog", "green", resbuf);
 }
