@@ -187,11 +187,11 @@ void winports_AppendConnections(void *connections, const ULONG af, const winport
         }
 
         clog_ArenaAppend(a, "\n%-7s\t%-23s\t%-23s\t%-15s\t%7lu",
-                    proto == TCP ? "TCP" : "UDP",
-                    r.LocalAddress,
-                    r.RemoteAddress,
-                    proto == TCP ? winports_PrettyPortState(r.State, portStateBuf) : "",
-                    r.PID);
+                         proto == TCP ? "TCP" : "UDP",
+                         r.LocalAddress,
+                         r.RemoteAddress,
+                         proto == TCP ? winports_PrettyPortState(r.State, portStateBuf) : "",
+                         r.PID);
     }
 }
 
@@ -201,64 +201,40 @@ void winports_AppendPortStatistics(ULONG af, winports_Protocol proto, DWORD numE
 
     DOUBLE percentPortsBusy = 100 * ((DOUBLE)numEntries) / ((DOUBLE)MAX_PORT);
     clog_ArenaAppend(a, "\n%-15s\t%-15s\t%15lu\t%13.2lf",
-                ipVersion, protocol, numEntries, percentPortsBusy);
+                     ipVersion, protocol, numEntries, percentPortsBusy);
 }
 
 void clog_winports(clog_Arena scratch) {
-    clog_ArenaAppend(&scratch, "[winports]");
-    clog_ArenaAppend(&scratch, "\n%-7s\t%-23s\t%-23s\t%-15s\t%7s", "TCP", "Local Address", "Foreign Address", "State", "PID");
+    MIB_TCPTABLE_OWNER_PID *tcpIpv4 = winports_GetConnectionTable(IPv4, TCP, &scratch);
+    MIB_TCP6TABLE_OWNER_PID *tcpIpv6 = winports_GetConnectionTable(IPv6, TCP, &scratch);
+    MIB_UDPTABLE_OWNER_PID *udpIpv4 = winports_GetConnectionTable(IPv4, UDP, &scratch);
+    MIB_UDP6TABLE_OWNER_PID *udpIpv6 = winports_GetConnectionTable(IPv6, UDP, &scratch);
 
-    clog_Arena reset = scratch;
-    MIB_TCPTABLE_OWNER_PID *tcpIpv4 = winports_GetConnectionTable(IPv4, TCP, &reset);
-    DWORD tcpIpv4Count = 0;
-    if (tcpIpv4 != NULL) {
-        tcpIpv4Count = tcpIpv4->dwNumEntries;
-        winports_AppendConnections(tcpIpv4, IPv4, TCP, &reset);
-    }
-
-    reset = scratch;
-    MIB_TCP6TABLE_OWNER_PID *tcpIpv6 = winports_GetConnectionTable(IPv6, TCP, &reset);
-    DWORD tcpIpv6Count = 0;
-    if (tcpIpv6 != NULL) {
-        tcpIpv6Count = tcpIpv6->dwNumEntries;
-        winports_AppendConnections(tcpIpv6, IPv6, TCP, &reset);
-    }
-
-    reset = scratch;
-    MIB_UDPTABLE_OWNER_PID *udpIpv4 = winports_GetConnectionTable(IPv4, UDP, &reset);
-    DWORD udpIpv4Count = 0;
-    if (udpIpv4 != NULL) {
-        udpIpv4Count = udpIpv4->dwNumEntries;
-        winports_AppendConnections(udpIpv4, IPv4, UDP, &reset);
-    }
-
-    reset = scratch;
-    MIB_UDP6TABLE_OWNER_PID *udpIpv6 = winports_GetConnectionTable(IPv6, UDP, &reset);
-    DWORD udpIpv6Count = 0;
-    if (udpIpv6 != NULL) {
-        udpIpv6Count = udpIpv6->dwNumEntries;
-        winports_AppendConnections(udpIpv6, IPv6, UDP, &reset);
-    }
+    clog_ArenaAppend(&scratch, "[winportsused]");
+    clog_ArenaAppend(&scratch, "\n%-15s\t%-15s\t%15s\t%13s", "IP version", "Protocol", "Ports Used #", "Ports Used %");
+    if (tcpIpv4 != NULL) winports_AppendPortStatistics(IPv4, TCP, tcpIpv4->dwNumEntries, &scratch);
+    if (tcpIpv6 != NULL) winports_AppendPortStatistics(IPv6, TCP, tcpIpv6->dwNumEntries, &scratch);
+    if (udpIpv4 != NULL) winports_AppendPortStatistics(IPv4, UDP, udpIpv4->dwNumEntries, &scratch);
+    if (udpIpv6 != NULL) winports_AppendPortStatistics(IPv6, UDP, udpIpv6->dwNumEntries, &scratch);
 
     BOOL allErrored = tcpIpv4 == NULL && tcpIpv6 == NULL && udpIpv4 == NULL && udpIpv6 == NULL;
     BOOL anyErrored = tcpIpv4 == NULL || tcpIpv6 == NULL || udpIpv4 == NULL || udpIpv6 == NULL;
-    if (allErrored) {
-        clog_ArenaAppend(&reset, "\n(Unable to get networking tables)");
-    } else if (anyErrored) {
-        clog_ArenaAppend(&reset, "\n(Unable to get some of the networking tables)");
-    }
+    if (allErrored)
+        clog_ArenaAppend(&scratch, "\n(Unable to get networking statistics)");
+    else if (anyErrored)
+        clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
 
-    clog_ArenaAppend(&scratch, "\n[winportsused]");
-    clog_ArenaAppend(&scratch, "\n%-15s\t%-15s\t%15s\t%13s", "IP version", "Protocol", "Ports Used #", "Ports Used %");
-    if (tcpIpv4 != NULL) winports_AppendPortStatistics(IPv4, TCP, tcpIpv4Count, &reset);
-    if (tcpIpv6 != NULL) winports_AppendPortStatistics(IPv6, TCP, tcpIpv6Count, &reset);
-    if (udpIpv4 != NULL) winports_AppendPortStatistics(IPv4, UDP, udpIpv4Count, &reset);
-    if (udpIpv6 != NULL) winports_AppendPortStatistics(IPv6, UDP, udpIpv6Count, &reset);
-    if (allErrored) {
-        clog_ArenaAppend(&reset, "\n(Unable to get networking statistics)");
-    } else if (anyErrored) {
-        clog_ArenaAppend(&reset, "\n(Unable to get some of the networking statistics)");
-    }
+    clog_ArenaAppend(&scratch, "\n[winports]");
+    clog_ArenaAppend(&scratch, "\n%-7s\t%-23s\t%-23s\t%-15s\t%7s", "TCP", "Local Address", "Foreign Address", "State", "PID");
+    if (tcpIpv4 != NULL) winports_AppendConnections(tcpIpv4, IPv4, TCP, &scratch);
+    if (tcpIpv6 != NULL) winports_AppendConnections(tcpIpv6, IPv6, TCP, &scratch);
+    if (udpIpv4 != NULL) winports_AppendConnections(udpIpv4, IPv4, UDP, &scratch);
+    if (udpIpv6 != NULL) winports_AppendConnections(udpIpv6, IPv6, UDP, &scratch);
+
+    if (allErrored)
+        clog_ArenaAppend(&scratch, "\n(Unable to get networking statistics)");
+    else if (anyErrored)
+        clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
 }
 
 #ifdef STANDALONE

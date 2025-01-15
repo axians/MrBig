@@ -1,7 +1,7 @@
 #include "clientlog.h"
 
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message)) {
-    clog_ArenaState *arenaRegion = clog_ArenaMake(0x20000); // 128 KB
+    clog_ArenaState *arenaRegion = clog_ArenaMake(0x80000); // 512 KB
     clog_Arena a = arenaRegion->Memory;
 
     clog_DeferError(&a, errorcode) {
@@ -41,7 +41,6 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message)) {
     clog_applications(a);
     clog_ArenaAppend(&a, "\n");
     clog_certificates(a);
-
     clog_reboots(5, a);
     clog_ArenaAppend(&a, "\n");
     clog_clock(a);
