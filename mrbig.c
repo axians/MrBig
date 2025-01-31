@@ -895,17 +895,8 @@ void mrsend(char *machine, char *test, char *color, char *message)
 	The format is:
 		client [machine],[domain],[tld].[os] [os] [message] */
 void mrsend_clientlog(char *machine, char *message) {
-    char *p = NULL;
-
-    if (debug > 1) mrlog("mrsend(%s, %s)", machine, message);
-
-    /* Prepare the report */
-    p = big_malloc("mrsend_clientlog()", report_size + 1);
-    p[0] = '\0';
-    snprcat(p, report_size, "client %s.windows windows\n%s",
-            machine, message);
-    send_update(p);
-    big_free("mrsend_clientlog()", p);
+    if (debug > 1) mrlog("mrsend_clientlog(%s, ...)", machine);
+    send_update(message);
 }
 
 #ifdef _WIN64

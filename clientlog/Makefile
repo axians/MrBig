@@ -1,6 +1,6 @@
 
 # CFLAGS = -Wall -O -g -DDEBUG
-CFLAGS = -Wall -O2
+CFLAGS = -Wall -Werror -O2
 ODIR = .
 _OBJ = applications.o certificates.o clock.o date.o diskinfo.o eventlog.o ipconfig.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
@@ -64,7 +64,7 @@ who: $(ODIR)/who.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -lWtsapi32
 
 winmemory: $(ODIR)/winmemory.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lpdh
 
 winports: $(ODIR)/winports.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^  -lWs2_32  -lIphlpapi

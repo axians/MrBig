@@ -129,6 +129,15 @@ void *winports_GetConnectionTable(ULONG af, winports_Protocol proto, clog_Arena 
     return result;
 }
 
+BOOL equalipv6(UCHAR addr1[16], UCHAR addr2[16]) {
+    for (DWORD i = 0; i < 16; i++) {
+        if (addr1[i] != addr2[i]) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 void winports_AppendConnections(void *connections, const ULONG af, const winports_Protocol proto, clog_Arena *a) {
     winports_Record r;
     r.Proto = proto;
@@ -138,26 +147,41 @@ void winports_AppendConnections(void *connections, const ULONG af, const winport
     struct in_addr ipAddress;
     DWORD numEntries = ((MIB_TCPTABLE_OWNER_PID *)connections)->dwNumEntries;
     for (DWORD i = 0; i < numEntries; i++) {
+        DWORD range = 1;
+        DWORD lastPort = 0;
         switch (af) {
         case IPv4:
             switch (proto) {
             case TCP:
-                MIB_TCPROW_OWNER_PID tcp4row = ((MIB_TCPTABLE_OWNER_PID *)connections)->table[i];
-                ipAddress.S_un.S_addr = (u_long)tcp4row.dwLocalAddr;
-                snprintf(r.LocalAddress, sizeof(r.LocalAddress), "%s:%u", inet_ntoa(ipAddress), ntohs(tcp4row.dwLocalPort));
+                MIB_TCPROW_OWNER_PID *tcp4row = &((MIB_TCPTABLE_OWNER_PID *)connections)->table[i];
+                while (i + range < numEntries &&
+                       ((MIB_TCPTABLE_OWNER_PID *)connections)->table[i + range].dwLocalAddr == tcp4row->dwLocalAddr &&
+                       ((MIB_TCPTABLE_OWNER_PID *)connections)->table[i + range].dwOwningPid == tcp4row->dwOwningPid) {
+                    range++;
+                }
+                lastPort = ((MIB_TCPTABLE_OWNER_PID *)connections)->table[i + range - 1].dwLocalPort;
+                ipAddress.S_un.S_addr = (u_long)tcp4row->dwLocalAddr;
+                snprintf(r.LocalAddress, sizeof(r.LocalAddress), "%s:%u", inet_ntoa(ipAddress), ntohs(tcp4row->dwLocalPort));
 
-                ipAddress.S_un.S_addr = (u_long)tcp4row.dwRemoteAddr;
-                snprintf(r.RemoteAddress, sizeof(r.RemoteAddress), "%s:%u", inet_ntoa(ipAddress), ntohs(tcp4row.dwRemotePort));
-                r.State = tcp4row.dwState;
-                r.PID = tcp4row.dwOwningPid;
+                ipAddress.S_un.S_addr = (u_long)tcp4row->dwRemoteAddr;
+                snprintf(r.RemoteAddress, sizeof(r.RemoteAddress), "%s:%u", inet_ntoa(ipAddress), ntohs(tcp4row->dwRemotePort));
+                r.State = tcp4row->dwState;
+                r.PID = tcp4row->dwOwningPid;
                 break;
             case UDP:
-                MIB_UDPROW_OWNER_PID udp4row = ((MIB_UDPTABLE_OWNER_PID *)connections)->table[i];
-                ipAddress.S_un.S_addr = (u_long)udp4row.dwLocalAddr;
-                snprintf(r.LocalAddress, sizeof(r.LocalAddress), "%s:%u", inet_ntoa(ipAddress), ntohs(udp4row.dwLocalPort));
+                MIB_UDPROW_OWNER_PID *udp4row = &((MIB_UDPTABLE_OWNER_PID *)connections)->table[i];
+                while (i + range < numEntries &&
+                       ((MIB_UDPTABLE_OWNER_PID *)connections)->table[i + range].dwLocalAddr == udp4row->dwLocalAddr &&
+                       ((MIB_UDPTABLE_OWNER_PID *)connections)->table[i + range].dwOwningPid == udp4row->dwOwningPid) {
+                    range++;
+                }
+                lastPort = ((MIB_UDPTABLE_OWNER_PID *)connections)->table[i + range - 1].dwLocalPort;
+                ipAddress.S_un.S_addr = (u_long)udp4row->dwLocalAddr;
+                snprintf(r.LocalAddress, sizeof(r.LocalAddress), "%s:%u", inet_ntoa(ipAddress), ntohs(udp4row->dwLocalPort));
                 memcpy(r.RemoteAddress, "*:*", 4); // same as netstat
                 r.State = 99;
-                r.PID = udp4row.dwOwningPid;
+                r.PID = udp4row->dwOwningPid;
+                break;
             default:
                 break;
             }
@@ -165,18 +189,30 @@ void winports_AppendConnections(void *connections, const ULONG af, const winport
         case IPv6:
             switch (proto) {
             case TCP:
-                MIB_TCP6ROW_OWNER_PID tcp6row = ((MIB_TCP6TABLE_OWNER_PID *)connections)->table[i];
-                winports_PrettyIPv6(tcp6row.ucLocalAddr, tcp6row.dwLocalPort, r.LocalAddress);
-                winports_PrettyIPv6(tcp6row.ucRemoteAddr, tcp6row.dwRemotePort, r.RemoteAddress);
-                r.State = tcp6row.dwState;
-                r.PID = tcp6row.dwOwningPid;
+                MIB_TCP6ROW_OWNER_PID *tcp6row = &((MIB_TCP6TABLE_OWNER_PID *)connections)->table[i];
+                while (i + range < numEntries &&
+                       ((MIB_TCP6TABLE_OWNER_PID *)connections)->table[i + range].dwOwningPid == tcp6row->dwOwningPid &&
+                       equalipv6(((MIB_TCP6TABLE_OWNER_PID *)connections)->table[i + range].ucLocalAddr, tcp6row->ucLocalAddr)) {
+                    range++;
+                }
+                lastPort = ((MIB_TCP6TABLE_OWNER_PID *)connections)->table[i + range - 1].dwLocalPort;
+                winports_PrettyIPv6(tcp6row->ucLocalAddr, tcp6row->dwLocalPort, r.LocalAddress);
+                winports_PrettyIPv6(tcp6row->ucRemoteAddr, tcp6row->dwRemotePort, r.RemoteAddress);
+                r.State = tcp6row->dwState;
+                r.PID = tcp6row->dwOwningPid;
                 break;
             case UDP:
-                MIB_UDP6ROW_OWNER_PID udp6row = ((MIB_UDP6TABLE_OWNER_PID *)connections)->table[i];
-                winports_PrettyIPv6(udp6row.ucLocalAddr, udp6row.dwLocalPort, r.LocalAddress);
+                MIB_UDP6ROW_OWNER_PID *udp6row = &((MIB_UDP6TABLE_OWNER_PID *)connections)->table[i];
+                while (i + range < numEntries &&
+                       ((MIB_TCP6TABLE_OWNER_PID *)connections)->table[i + range].dwOwningPid == udp6row->dwOwningPid &&
+                       equalipv6(((MIB_UDP6TABLE_OWNER_PID *)connections)->table[i + range].ucLocalAddr, udp6row->ucLocalAddr)) {
+                    range++;
+                }
+                lastPort = ((MIB_UDP6TABLE_OWNER_PID *)connections)->table[i + range - 1].dwLocalPort;
+                winports_PrettyIPv6(udp6row->ucLocalAddr, udp6row->dwLocalPort, r.LocalAddress);
                 memcpy(r.RemoteAddress, "*:*", 4); // same as netstat
                 r.State = 99;
-                r.PID = udp6row.dwOwningPid;
+                r.PID = udp6row->dwOwningPid;
                 break;
             default:
                 break;
@@ -186,12 +222,17 @@ void winports_AppendConnections(void *connections, const ULONG af, const winport
             break;
         }
 
-        clog_ArenaAppend(a, "\n%-7s\t%-23s\t%-23s\t%-15s\t%7lu",
+        clog_ArenaAppend(a, "\n%-7s\t%-31s\t%-31s\t%-15s\t%7lu",
                          proto == TCP ? "TCP" : "UDP",
                          r.LocalAddress,
                          r.RemoteAddress,
                          proto == TCP ? winports_PrettyPortState(r.State, portStateBuf) : "",
                          r.PID);
+
+        if (range > 1) {
+            clog_ArenaAppend(a, "\n\t...the above IP and PID spans %lu additional ports, up to and including port %u", range - 1, ntohs(lastPort));
+            i += range - 1;
+        }
     }
 }
 
@@ -225,7 +266,7 @@ void clog_winports(clog_Arena scratch) {
         clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
 
     clog_ArenaAppend(&scratch, "\n[winports]");
-    clog_ArenaAppend(&scratch, "\n%-7s\t%-23s\t%-23s\t%-15s\t%7s", "TCP", "Local Address", "Foreign Address", "State", "PID");
+    clog_ArenaAppend(&scratch, "\n%-7s\t%-31s\t%-31s\t%-15s\t%7s", "Proto.", "Local Address", "Foreign Address", "State", "PID");
     if (tcpIpv4 != NULL) winports_AppendConnections(tcpIpv4, IPv4, TCP, &scratch);
     if (tcpIpv6 != NULL) winports_AppendConnections(tcpIpv6, IPv6, TCP, &scratch);
     if (udpIpv4 != NULL) winports_AppendConnections(udpIpv4, IPv4, UDP, &scratch);

@@ -133,11 +133,6 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     do {
         status = ReadFile(hPipeOutputRead, readBuf, BUFREAD, &readBufLen, NULL);
         if (readBufLen > 0) {
-            for (DWORD i = 0; i < readBufLen; i++) {
-                if (readBuf[i] >= 0x7F) {
-                    readBuf[i] = ' ';
-                }
-            }
             clog_ArenaAppend(&scratch, "%s", readBuf);
             written += readBufLen;
         } else {
