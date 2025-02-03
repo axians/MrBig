@@ -1019,7 +1019,7 @@ void mrbig(void)
 			snprcat(now, sizeof now, " [%s]", hostname);
 		}
 
-        clientlog(mrmachine, &mrsend_clientlog);
+        clientlog(mrmachine, &mrsend_clientlog, debug ? &mrlog : (void (*)(char *,...))NULL);
         check_chunks("after clientlog test");
 
 		cpu();

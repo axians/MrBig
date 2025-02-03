@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <wtypesbase.h>
 
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message));
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *, ...));
 
 /* utils */
 LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize);
