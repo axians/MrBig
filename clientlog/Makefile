@@ -28,13 +28,13 @@ clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -DCLIENTLOGEXE
 
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DSTANDALONE
+	$(CC) $(CFLAGS) -o $@ $^
 
 certificates: $(ODIR)/certificates.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -lcrypt32
 
 clientversion: $(ODIR)/clientversion.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DSTANDALONE
+	$(CC) $(CFLAGS) -o $@ $^
 
 clock: $(ODIR)/clock.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^

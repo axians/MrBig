@@ -13,7 +13,7 @@ OBJS=cfg.o cpu.o disk.o memory.o msgs.o procs.o svcs.o mrbig.o \
 	strlcpy.o disphelper.o wmi.o
 NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o procsnt.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o
-CLIENTLOGOBJS=applications.o certificates.o clock.o date.o diskinfo.o \
+CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o date.o diskinfo.o \
 	eventlog.o ipconfig.o osversion.o processes.o reboots.o runningservices.o \
 	who.o winmemory.o winports.o winroute.o winuptime.o arena.o utils.o clientlog.o
 CLIENTLOGOBJS_32=$(patsubst %,../clientlog/build_x86/%,$(CLIENTLOGOBJS))

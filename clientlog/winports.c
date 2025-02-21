@@ -185,7 +185,7 @@ void winports_AppendConnections(winports_ConnectionTable *connections, const ULO
     winports_Record rData = {0}, rPrevData = {0};
     winports_Record *r = &rData, *rPrev = &rPrevData;
 
-    CHAR portStateBuf[16], localAddressPortBuf[64], remoteAddressPortBuf[64];
+    CHAR portStateBuf[16], localAddressPortBuf[74], remoteAddressPortBuf[74];
     DWORD numEntries = connections->TCP4.dwNumEntries; // Well... If it works, it works
     BOOL skipping = FALSE;
     DWORD range = 1;
@@ -203,9 +203,9 @@ void winports_AppendConnections(winports_ConnectionTable *connections, const ULO
             range = 1;
         }
 
-        snprintf(localAddressPortBuf, 64, "%s:%lu", r->LocalAddress, r->LocalPort);
+        snprintf(localAddressPortBuf, 74, "%s:%lu", r->LocalAddress, r->LocalPort);
         if (proto == TCP) {
-            snprintf(remoteAddressPortBuf, 64, "%s:%lu", r->RemoteAddress, r->RemotePort);
+            snprintf(remoteAddressPortBuf, 74, "%s:%lu", r->RemoteAddress, r->RemotePort);
         } else {
             snprintf(remoteAddressPortBuf, 64, "%s", r->RemoteAddress);
         }
