@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <wtypesbase.h>
 
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *, ...));
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...));
 
 /* utils */
 LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize);
@@ -22,6 +22,9 @@ void clog_applications(clog_Arena scratch);
 
 /* certificates */
 void clog_certificates(clog_Arena scratch);
+
+/* clientversion */
+void clog_clientversion(clog_Arena scratch);
 
 /* clock */
 void clog_clock(clog_Arena scratch);

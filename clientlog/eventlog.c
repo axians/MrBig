@@ -129,11 +129,10 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
 
 void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
     CHAR eventBuffer[MAX_EVENTLOG_ROW_SIZE];
-    clog_ArenaAppend(&scratch, "[eventlog]");
     for (DWORD channelIx = 0; channelIx < NUM_CHANNELS; channelIx++) {
         CHAR channelName[32];
         wcstombs(channelName, CHANNELS[channelIx], 32);
-        clog_ArenaAppend(&scratch, "\n### %s log ###", channelName);
+        clog_ArenaAppend(&scratch, "\n[eventlog_%s]", CharLowerA(channelName));
 
         EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx], L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= 3600000]]", EvtQueryChannelPath | EvtQueryReverseDirection);
         clog_Defer(&scratch, hLog, RETURN_INT, &EvtClose);
@@ -152,10 +151,6 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
             }
         } else {
             clog_ArenaAppend(&scratch, "\n(No warnings or errors found)");
-        }
-
-        if (channelIx != NUM_CHANNELS - 1) {
-            clog_ArenaAppend(&scratch, "\n");
         }
     }
 }

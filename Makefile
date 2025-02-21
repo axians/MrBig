@@ -1,6 +1,6 @@
 
 PACKAGE=MrBig
-VERSION=0.26.2.13
+VERSION=0.26.2.14
 #CFLAGS=-Wall -O -g -DDEBUG
 CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
@@ -49,7 +49,7 @@ mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
 
 clientlog.o:
-	$(MAKE) -C ../clientlog objectfile
+	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(VERSION)"
 
 # evilbbd.exe: evilbbd.c
 #	$(CC) $(CFLAGS) -o evilbbd.exe evilbbd.c -lws2_32

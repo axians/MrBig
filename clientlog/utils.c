@@ -59,7 +59,8 @@ LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t 
     return out;
 }
 
-#define BUFREAD 512
+#define PROCESS_TIMOUT_LIMIT_MS 1000
+#define BUFREAD 513
 /** Run a shell command. Callers should call clog_PopDeferAll(&scratch) after this function has been used.
  * @param cmdline the command to run, including flags
  * @param scratch a clientlog arena to which the output will be appended
@@ -79,14 +80,14 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     // Create a pipe for the child process's STDOUT.
     if (!CreatePipe(&hPipeOutputRead, &hPipeOutputWrite, &securityAttributes, 0)) {
         status = GetLastError();
-        clog_ArenaAppend(&scratch, "(Failed to run command, error code 1.%lu.)", status);
+        clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 1.%#010x.)", status);
         return status;
     }
 
     // Ensure the read handle to the pipe for STDOUT is not inherited.
     if (!SetHandleInformation(hPipeOutputRead, HANDLE_FLAG_INHERIT, 0)) {
         status = GetLastError();
-        clog_ArenaAppend(&scratch, "(Failed to run command, error code 2.%lu.)", status);
+        clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 2.%#010x.)", status);
         CloseHandle(hPipeOutputRead);
         CloseHandle(hPipeOutputWrite);
         return status;
@@ -115,15 +116,22 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     CloseHandle(hPipeOutputWrite);
     if (!status) {
         status = GetLastError();
-        clog_ArenaAppend(&scratch, "(Failed to run command, error code 3.%lu.)", status);
+        clog_ArenaAppend(&scratch, "(Failed to run command, could not create process from '%s'. Error code 3.%#010x.)", cmdline, status);
         CloseHandle(hPipeOutputRead);
         return status;
     }
 
-    status = WaitForSingleObject(procInfo.hProcess, 500);
+    status = WaitForSingleObject(procInfo.hProcess, PROCESS_TIMOUT_LIMIT_MS);
     if (status != WAIT_OBJECT_0) {
-        status = GetLastError();
-        clog_ArenaAppend(&scratch, "(Failed to run command, error code 5.%lu.)", status);
+        if (status == WAIT_FAILED) {
+            status = GetLastError();
+            clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 4.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status);
+        } else if (status == WAIT_TIMEOUT) {
+            clog_ArenaAppend(&scratch, "(Failed to run command, process took more than %dms to run. Error code 5.%lu.)", PROCESS_TIMOUT_LIMIT_MS, status);
+        } else {
+            DWORD lastError = GetLastError();
+            clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 6.%lu.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status, lastError);
+        }
         CloseHandle(hPipeOutputRead);
         return status;
     }
@@ -131,8 +139,9 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     DWORD readBufLen = 0, written = 0;
     CHAR readBuf[BUFREAD];
     do {
-        status = ReadFile(hPipeOutputRead, readBuf, BUFREAD, &readBufLen, NULL);
+        status = ReadFile(hPipeOutputRead, readBuf, BUFREAD-1, &readBufLen, NULL);
         if (readBufLen > 0) {
+            readBuf[readBufLen] = '\0';
             clog_ArenaAppend(&scratch, "%s", readBuf);
             written += readBufLen;
         } else {
@@ -150,3 +159,4 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     return status;
 }
 #undef BUFREAD
+#undef PROCESS_TIMOUT_LIMIT_MS

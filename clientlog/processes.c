@@ -29,7 +29,7 @@ typedef struct {
 
 processes_Handle clog_processes_StartQuery(clog_Arena *a) {
     HANDLE eventRes = NULL;
-    PDH_HQUERY queryRes = INVALID_HANDLE_VALUE;
+    PDH_HQUERY queryRes = NULL;
     PDH_HCOUNTER idProcess, workingSet, processorTime;
     processes_State *state = clog_ArenaAlloc(a, processes_State, 1);
 
@@ -61,7 +61,7 @@ processes_Handle clog_processes_StartQuery(clog_Arena *a) {
     return state;
 
 Cleanup:
-    if (queryRes != INVALID_HANDLE_VALUE) PdhCloseQuery(queryRes);
+    if (queryRes != NULL) PdhCloseQuery(queryRes);
     if (eventRes != NULL) CloseHandle(eventRes);
     return state;
 }
@@ -69,7 +69,8 @@ Cleanup:
 CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) { // TODO: Cache lookups
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
     if (process) clog_Defer(a, process, RETURN_INT, &CloseHandle);
-    HANDLE processToken;
+
+    HANDLE processToken = NULL;
     if (!OpenProcessToken(process, TOKEN_QUERY, &processToken)) {
         return "-";
     }
@@ -86,6 +87,7 @@ CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) { // TODO: Cache 
     CHAR username[userBufsize];
     CHAR domain[domainBufsize];
     SID_NAME_USE type;
+    
     LookupAccountSid(NULL, ((TOKEN_USER *)userSID)->User.Sid, username, &userBufsize, domain, &domainBufsize, &type);
     CHAR *result = clog_ArenaAlloc(a, char, userBufsize + domainBufsize + 2);
     sprintf(result, "%s\\%s", domain, username);
@@ -95,7 +97,7 @@ CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) { // TODO: Cache 
 processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena *a) {
     processes_Table result = {0};
 
-    result.ErrorCode = WaitForSingleObject(state->Event, 100 + PROCESSES_BENCHMARK_SECONDS * 1000);
+    result.ErrorCode = WaitForSingleObject(state->Event, PROCESSES_BENCHMARK_SECONDS * 1500);
     CloseHandle(state->Event);
     if (result.ErrorCode != WAIT_OBJECT_0) {
         PdhCloseQuery(state->Query);

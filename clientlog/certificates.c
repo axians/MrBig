@@ -29,8 +29,18 @@ LPSTR certificates_PrettyEKUPurposes(CHAR **eku, LPSTR out, size_t outSize) {
 }
 
 LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
-    CHAR eku[64];
-    snprintf(out, CERTIFICATES_ROW_SIZE, "\nFriendly Name:\t%s\nStore location:\t%s\nSubject:\t%s\nIssued by:\t%s\nIntended purposes: %s", c->FriendlyName, c->StoreLocation, c->Subject, c->Issuer, certificates_PrettyEKUPurposes(c->EKUPurposes, eku, sizeof(eku)));
+    CHAR eku[64], validFromBuf[64], validToBuf[64];
+    SYSTEMTIME validFrom, validTo;
+    FileTimeToSystemTime(&c->NotBefore, &validFrom);
+    FileTimeToSystemTime(&c->NotAfter, &validTo);
+    snprintf(out, CERTIFICATES_ROW_SIZE, "\nFriendly Name:\t%s\nValid from:\t%s\nValid to:\t%s\nStore location:\t%s\nSubject:\t%s\nIssued by:\t%s\nIntended purposes: %s",
+             c->FriendlyName,
+             clog_utils_PrettySystemtime(&validFrom, clog_utils_TIMESTAMP_DATETIME, validFromBuf, 64),
+             clog_utils_PrettySystemtime(&validTo, clog_utils_TIMESTAMP_DATETIME, validToBuf, 64),
+             c->StoreLocation,
+             c->Subject,
+             c->Issuer,
+             certificates_PrettyEKUPurposes(c->EKUPurposes, eku, sizeof(eku)));
     return out;
 }
 

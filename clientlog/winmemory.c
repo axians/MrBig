@@ -78,8 +78,8 @@ void clog_winmemory(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "\n%8s  %-13s\t%-15s\t%-15s\t%-.2lf%%",
                      "Virtual",
                      clog_utils_PrettyBytes(totalVirtualBytes, 0, totalPhys),
-                     clog_utils_PrettyBytes(freeVirtualBytes, 2, usedPhys),
-                     clog_utils_PrettyBytes(usedVirtualBytes, 2, freePhys),
+                     clog_utils_PrettyBytes(usedVirtualBytes, 2, usedPhys),
+                     clog_utils_PrettyBytes(freeVirtualBytes, 2, freePhys),
                      percentVirtualUsed);
 }
 
