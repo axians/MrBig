@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <wtypesbase.h>
 
+#define STR__IMPL(x) #x
+#define STR(x) STR__IMPL(x) // indirection to expand macros in x
+
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...));
 
 /* utils */

@@ -6,6 +6,10 @@
 #define MAX_EVENT_MESSAGE_SIZE (0x1000) // 4 KB
 #define MAX_EVENTLOG_ROW_SIZE (512)
 
+// Due to string literal concatenation in EvtQuery below, you must treat this as a string (not a number) when modifying
+// For example, a writing 3600 * 1000 instead of 3600000 will not work
+#define MAX_EVENT_AGE_MS 3600000
+
 const WCHAR *CHANNELS[] = {
     L"Application",
     L"Setup",
@@ -98,8 +102,8 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
     }
 
     if (providerName != NULL) {
-        // TODO: cache publisher handles like in EventLogRecord.
-        EVT_HANDLE pmHandle = EvtOpenPublisherMetadata(NULL, providerName, NULL, 0, 0); // We cannot use result.Provider, since we need wchar_t*
+        // TODO: cache publisher handles like in .NET EventLogRecord.
+        EVT_HANDLE pmHandle = EvtOpenPublisherMetadata(NULL, providerName, NULL, 0, 0); // RE providerName. We cannot use result.Provider, since we need wchar_t*
 
         WCHAR emptyBuffer[1] = {L'\0'}; // Due to: https://github.com/dotnet/runtime/issues/100198"
         status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL, EvtFormatMessageEvent, 0, emptyBuffer, &bufferNeeded);
@@ -134,7 +138,7 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
         wcstombs(channelName, CHANNELS[channelIx], 32);
         clog_ArenaAppend(&scratch, "\n[eventlog_%s]", CharLowerA(channelName));
 
-        EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx], L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= 3600000]]", EvtQueryChannelPath | EvtQueryReverseDirection);
+        EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx], L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= " STR(MAX_EVENT_AGE_MS) "]]", EvtQueryChannelPath | EvtQueryReverseDirection);
         clog_Defer(&scratch, hLog, RETURN_INT, &EvtClose);
 
         EVT_HANDLE event[maxNumEvents];
@@ -150,7 +154,7 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
                 clog_PopDefer(&scratch);
             }
         } else {
-            clog_ArenaAppend(&scratch, "\n(No warnings or errors found)");
+            clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %lfh.)", MAX_EVENT_AGE_MS / 3600000.0);
         }
     }
 }

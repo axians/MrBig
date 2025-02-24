@@ -108,7 +108,7 @@ DWORD reboots_RecentReboots(DWORD maxNumReboots, reboots_Event *output, clog_Are
                     currEventLogStoppedEvent->TimeGenerated - currEventRecord->TimeGenerated > MAX_EVENT_TIMEGAP) {
                     rebootTime = currEventRecord->TimeGenerated;
                 } else {
-                    rebootTime = currEventLogStoppedEvent->TimeGenerated;
+                    rebootTime = currEventRecord->TimeGenerated;
                 }
 
                 reboot = &output[numRebootsFound++];
@@ -154,7 +154,7 @@ void clog_reboots(DWORD maxNumReboots, clog_Arena scratch) {
     clog_PopDeferAll(&scratch);
     clog_ArenaAppend(&scratch, "[reboots]");
     if (numRebootsFound == 0) {
-        clog_ArenaAppend(&scratch, "\n(No reboots found withing the last %lu days)", MAX_EVENT_AGE / DAY);
+        clog_ArenaAppend(&scratch, "\n(No reboots found within the last %lu days)", MAX_EVENT_AGE / DAY);
         return;
     };
 
