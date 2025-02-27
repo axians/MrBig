@@ -132,16 +132,13 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
 
             GetVolumeInformation(drive->Root, drive->VolumeName, MAX_PATH + 1, NULL, 0, NULL, drive->FilesystemName, MAX_PATH + 1);
 
-            DISK_SPACE_INFORMATION diskInfo;
-            BOOL diskInfoFailed = GetDiskSpaceInformation(drive->Root, &diskInfo);
-            if (diskInfoFailed) {
-                continue;
+            DWORD sectorsPerCluster, bytesPerSector, freeClusters, totalClusters;
+            if (GetDiskFreeSpace(drive->Root, &sectorsPerCluster, &bytesPerSector, &freeClusters, &totalClusters)) {
+                ULONGLONG bytesPerCluster = sectorsPerCluster * bytesPerSector;
+                drive->TotalSize = totalClusters * bytesPerCluster;
+                drive->FreeSize = freeClusters * bytesPerCluster;
+                drive->BlockSize = bytesPerCluster;
             }
-
-            DWORD bytesPerAllocationUnit = diskInfo.SectorsPerAllocationUnit * diskInfo.BytesPerSector;
-            drive->TotalSize = diskInfo.ActualTotalAllocationUnits * bytesPerAllocationUnit;
-            drive->FreeSize = diskInfo.ActualAvailableAllocationUnits * bytesPerAllocationUnit;
-            drive->BlockSize = bytesPerAllocationUnit;
         }
 
         curr *= 2;
@@ -149,8 +146,8 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
 }
 
 void clog_diskinfo(clog_Arena scratch) {
-#define ArenaIndentAppend(arena, indentlevel, ...)                  \
-    do {                                                            \
+#define ArenaIndentAppend(arena, indentlevel, ...)             \
+    do {                                                       \
         clog_ArenaAppend(arena, "\n%*s", indentlevel * 4, ""); \
         clog_ArenaAppend(arena, __VA_ARGS__);                  \
     } while (0)
