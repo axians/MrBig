@@ -21,7 +21,7 @@ build_x86 build_x64:
 $(ODIR)/%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-clientlog.o: clientlog.c $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
+clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -c -o $@ $< 
 
 clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o

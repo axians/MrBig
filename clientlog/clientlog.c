@@ -2,13 +2,13 @@
 
 #define RUN(f, args...)                                            \
     do {                                                           \
-        if (mrlog) mrlog("\nClientlog running " #f "(" #args ")"); \
+        if (clog_mrlog) clog_mrlog("\nClientlog running " #f "(" #args ")"); \
         f(args);                                                   \
     } while (0)
 
-void (*mrlog)(char *fmt, ...) = NULL;
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*log)(char *fmt, ...)) {
-    mrlog = log;
+void (*clog_mrlog)(char *fmt, ...) = NULL;
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...)) {
+    clog_mrlog = mrlog;
     LOG_DEBUG("Clientlog start");
     clog_ArenaState *arenaState = clog_ArenaMake(0x80000); // 512 KB
     clog_Arena arena = arenaState->Memory;
