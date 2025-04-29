@@ -1,15 +1,14 @@
 #include "clientlog.h"
 
-#define LOG_DEBUG(...) \
-    if (mrlog) mrlog("\n" __VA_ARGS__);
-
 #define RUN(f, args...)                                            \
     do {                                                           \
         if (mrlog) mrlog("\nClientlog running " #f "(" #args ")"); \
         f(args);                                                   \
     } while (0)
 
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...)) {
+void (*mrlog)(char *fmt, ...) = NULL;
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*log)(char *fmt, ...)) {
+    mrlog = log;
     LOG_DEBUG("Clientlog start");
     clog_ArenaState *arenaState = clog_ArenaMake(0x80000); // 512 KB
     clog_Arena arena = arenaState->Memory;
@@ -99,11 +98,11 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 }
 
 #ifdef CLIENTLOGEXE
-void mrsend(char *machine, char *message) {
+void sendfn(char *machine, char *message) {
     printf("%s", message);
 }
 
-void mrlog(char *fmt, ...) {
+void logfn(char *fmt, ...) {
     va_list vargs;
     va_start(vargs, fmt);
     vprintf(fmt, vargs);
@@ -111,7 +110,7 @@ void mrlog(char *fmt, ...) {
 }
 
 int main(int argc, char *argv[]) {
-    clientlog("test", &mrsend, &mrlog);
+    clientlog("test", &sendfn, &logfn);
     return 0;
 }
 #endif

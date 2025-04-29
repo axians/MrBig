@@ -7,6 +7,10 @@
 #define STR__IMPL(x) #x
 #define STR(x) STR__IMPL(x) // indirection to expand macros in x
 
+#define LOG_DEBUG(...) \
+    if (mrlog) mrlog("\n" __VA_ARGS__);
+extern void (*mrlog)(char *fmt, ...);
+
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...));
 
 /* utils */
