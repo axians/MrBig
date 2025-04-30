@@ -117,14 +117,24 @@ void clog_certificates(clog_Arena scratch) {
         LOG_DEBUG("\tcertificates.c: \tGetting friendly name size.");
         BOOL ok = CertGetCertificateContextProperty(ctx, CERT_FRIENDLY_NAME_PROP_ID, NULL, &friendlySize);
         if (ok) {
-            BYTE friendlyNameUTF16[friendlySize];
+            WCHAR friendlyNameUTF16[friendlySize];
             LOG_DEBUG("\tcertificates.c: \tGetting friendly name.");
             CertGetCertificateContextProperty(ctx, CERT_FRIENDLY_NAME_PROP_ID, friendlyNameUTF16, &friendlySize);
-            CHAR friendlyNameUTF8[friendlySize];
-            friendlySize = wcstombs(friendlyNameUTF8, (wchar_t *)friendlyNameUTF16, friendlySize - 1);
-            c.FriendlyName = clog_ArenaAlloc(&scratch, void, friendlySize + 1);
-            memcpy(c.FriendlyName, friendlyNameUTF8, friendlySize);
-            c.FriendlyName[friendlySize] = '\0';
+
+            CHAR friendlyNameMultibyte[2 * friendlySize];
+            int friendlyMultibytes = 0;
+            CHAR wbuf[16] = {0};
+            for (int i = 0; i < friendlySize / 2; i++) {
+                int wrlen = wctomb(wbuf, friendlyNameUTF16[i]);
+                if (wrlen == 0) break;
+                if (wrlen > 0)
+                    friendlyMultibytes += sprintf(&friendlyNameMultibyte[friendlyMultibytes], "%s", wbuf);
+                else
+                    friendlyMultibytes += sprintf(&friendlyNameMultibyte[friendlyMultibytes], "*");
+            }
+            c.FriendlyName = clog_ArenaAlloc(&scratch, char, friendlyMultibytes + 1);
+            memcpy(c.FriendlyName, friendlyNameMultibyte, friendlySize);
+            c.FriendlyName[friendlyMultibytes] = '\0';
             LOG_DEBUG("\tcertificates.c: \tFriendly name in UTF-8 = '%s'.", c.FriendlyName);
         } else {
             LOG_DEBUG("\tcertificates.c: \tUnable to get friendly name size.");
