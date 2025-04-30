@@ -11,6 +11,9 @@ typedef struct {
     FILETIME NotBefore;
     FILETIME NotAfter;
     CHAR *StoreLocation;
+    CHAR *SignatureAlgorithm;
+    CHAR *Fingerprint;
+    CHAR *SerialNumber;
 } Certificate;
 
 LPSTR certificates_PrettyEKUPurposes(CHAR **eku, LPSTR out, size_t outSize) {
@@ -33,15 +36,48 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
     SYSTEMTIME validFrom, validTo;
     FileTimeToSystemTime(&c->NotBefore, &validFrom);
     FileTimeToSystemTime(&c->NotAfter, &validTo);
-    snprintf(out, CERTIFICATES_ROW_SIZE, "\nFriendly Name:\t%s\nValid from:\t%s\nValid to:\t%s\nStore location:\t%s\nSubject:\t%s\nIssued by:\t%s\nIntended purposes: %s",
+    snprintf(out, CERTIFICATES_ROW_SIZE,
+             "\nFriendly Name:      \t%s"
+             "\nValid from:         \t%s"
+             "\nValid to:           \t%s"
+             "\nStore location:     \t%s"
+             "\nSubject RDN:        \t%s"
+             "\nIssuer RDN:         \t%s"
+             "\nIntended purposes:  \t%s"
+             "\nSignature Algorithm:\t%s"
+             "\nFinger Print:       \t%s"
+             "\nSerial Number:      \t%s",
              c->FriendlyName,
              clog_utils_PrettySystemtime(&validFrom, clog_utils_TIMESTAMP_DATETIME, validFromBuf, 64),
              clog_utils_PrettySystemtime(&validTo, clog_utils_TIMESTAMP_DATETIME, validToBuf, 64),
              c->StoreLocation,
              c->Subject,
              c->Issuer,
-             certificates_PrettyEKUPurposes(c->EKUPurposes, eku, sizeof(eku)));
+             certificates_PrettyEKUPurposes(c->EKUPurposes, eku, sizeof(eku)),
+             c->SignatureAlgorithm,
+             c->Fingerprint,
+             c->SerialNumber);
     return out;
+}
+
+size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
+    size_t written = 0;
+    const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
+    if (!oIDInfo) {
+        // Unknown OID;
+        out[0] = '\0';
+        return written;
+    }
+
+    LOG_DEBUG("\tcertificates.c: \t\tLookup of OID %s successful, getting readable name.", oID);
+    written = wcstombs(out, oIDInfo->pwszName, outSize - 1);
+    if (written > outSize || written <= 0) {
+        LOG_DEBUG("\tcertificates.c: \t\tUnreadable character in name.", oID);
+        written = 0;
+    }
+
+    out[written] = '\0';
+    return written;
 }
 
 CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
@@ -68,11 +104,14 @@ CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
         res = clog_ArenaAlloc(a, CHAR *, p->cUsageIdentifier + 1);
         for (DWORD j = 0; j < p->cUsageIdentifier; j++) {
             CHAR *oID = p->rgpszUsageIdentifier[j];
+            CHAR purposeBuf[128];
             LOG_DEBUG("\tcertificates.c: \t\tGetting OID info %lu.", j);
-            const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
+            size_t purposeLen = certificates_GetOIDName(oID, purposeBuf, 128);
 
-            CHAR purposeBuf[32];
-            DWORD purposeLen = wcstombs(purposeBuf, oIDInfo->pwszName, 31);
+            if (purposeLen <= 0) {
+                purposeLen = sprintf(purposeBuf, "Unknown purpose (%s)", oID);
+            }
+
             CHAR *purpose = clog_ArenaAlloc(a, CHAR, purposeLen + 1);
             memcpy(purpose, purposeBuf, purposeLen);
             purpose[purposeLen] = '\0';
@@ -113,55 +152,67 @@ void clog_certificates(clog_Arena scratch) {
         Certificate c = {0};
 
         // Friendly Name
-        DWORD friendlySize = 0;
-        LOG_DEBUG("\tcertificates.c: \tGetting friendly name size.");
-        BOOL ok = CertGetCertificateContextProperty(ctx, CERT_FRIENDLY_NAME_PROP_ID, NULL, &friendlySize);
-        if (ok) {
-            WCHAR friendlyNameUTF16[friendlySize];
-            LOG_DEBUG("\tcertificates.c: \tGetting friendly name.");
-            CertGetCertificateContextProperty(ctx, CERT_FRIENDLY_NAME_PROP_ID, friendlyNameUTF16, &friendlySize);
-
-            CHAR friendlyNameMultibyte[2 * friendlySize];
-            int friendlyMultibytes = 0;
-            CHAR wbuf[16] = {0};
-            for (int i = 0; i < friendlySize / 2; i++) {
-                int wrlen = wctomb(wbuf, friendlyNameUTF16[i]);
-                if (wrlen == 0) break;
-                if (wrlen > 0)
-                    friendlyMultibytes += sprintf(&friendlyNameMultibyte[friendlyMultibytes], "%s", wbuf);
-                else
-                    friendlyMultibytes += sprintf(&friendlyNameMultibyte[friendlyMultibytes], "*");
-            }
-            c.FriendlyName = clog_ArenaAlloc(&scratch, char, friendlyMultibytes + 1);
-            memcpy(c.FriendlyName, friendlyNameMultibyte, friendlySize);
-            c.FriendlyName[friendlyMultibytes] = '\0';
-            LOG_DEBUG("\tcertificates.c: \tFriendly name in UTF-8 = '%s'.", c.FriendlyName);
-        } else {
-            LOG_DEBUG("\tcertificates.c: \tUnable to get friendly name size.");
-            c.FriendlyName = "-";
-        }
+        DWORD getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
+        LOG_DEBUG("\tcertificates.c: \tGetting RDN friendly name.");
+        DWORD friendlySize = CertGetNameStringA(ctx, CERT_NAME_FRIENDLY_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
+        c.FriendlyName = clog_ArenaAlloc(&scratch, void, friendlySize);
+        LOG_DEBUG("\tcertificates.c: \tGetting RDN friendly name.");
+        CertGetNameStringA(ctx, CERT_NAME_FRIENDLY_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, c.FriendlyName, friendlySize);
+        LOG_DEBUG("\tcertificates.c: \tRDN friendly name = '%s'.", c.FriendlyName);
 
         // Subject
-        DWORD getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
-        LOG_DEBUG("\tcertificates.c: \tGetting RDN subject size.");
+        getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
+        LOG_DEBUG("\tcertificates.c: \tGetting subject RDN size.");
         DWORD subjectSize = CertGetNameStringA(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
         c.Subject = clog_ArenaAlloc(&scratch, void, subjectSize);
-        LOG_DEBUG("\tcertificates.c: \tGetting RDN subject.");
+        LOG_DEBUG("\tcertificates.c: \tGetting subject RDN.");
         CertGetNameString(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, c.Subject, subjectSize);
-        LOG_DEBUG("\tcertificates.c: \tRDN subject = '%s'.", c.Subject);
+        LOG_DEBUG("\tcertificates.c: \tSubject RDN = '%s'.", c.Subject);
 
         // Issued By
         getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
-        LOG_DEBUG("\tcertificates.c: \tGetting RDN issued by size.");
+        LOG_DEBUG("\tcertificates.c: \tGetting issuer RDN size.");
         DWORD issuerSize = CertGetNameStringA(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_ISSUER_FLAG | CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
         c.Issuer = clog_ArenaAlloc(&scratch, void, issuerSize);
-        LOG_DEBUG("\tcertificates.c: \tGetting RDN issued by.");
+        LOG_DEBUG("\tcertificates.c: \tGetting issuer RD.");
         CertGetNameString(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, c.Issuer, issuerSize);
-        LOG_DEBUG("\tcertificates.c: \tRDN issued by = '%s'.", c.Issuer);
+        LOG_DEBUG("\tcertificates.c: \tIssuer RDN = '%s'.", c.Issuer);
 
         // Intended Purposes
         LOG_DEBUG("\tcertificates.c: \tGetting cert EKU purposes.");
         c.EKUPurposes = certificates_GetEKUPurposes(ctx->pCertInfo, &scratch);
+
+        // Signature Algorithm
+        CHAR algoBuf[64];
+        size_t algoLen = certificates_GetOIDName(ctx->pCertInfo->SignatureAlgorithm.pszObjId, algoBuf, 64);
+        if (algoLen <= 0)
+            c.SignatureAlgorithm = "<unknown>";
+        else {
+            CHAR *algo = clog_ArenaAlloc(&scratch, CHAR, algoLen + 1);
+            memcpy(algo, algoBuf, algoLen);
+            algo[algoLen] = '\0';
+            c.SignatureAlgorithm = algo;
+        }
+
+        // Fingerprint
+        BYTE fingerprintHash[64] = {0};
+        DWORD fingeprintSize = sizeof(fingerprintHash);
+        CHAR fingerprintHex[128] = "";
+        if (CertGetCertificateContextProperty(ctx, CERT_HASH_PROP_ID, fingerprintHash, &fingeprintSize)) {
+            size_t written = 0;
+            for (int i = 0; i < fingeprintSize; i++) {
+                written += sprintf(&fingerprintHex[written], "%02x", fingerprintHash[i]);
+            }
+        }
+        c.Fingerprint = fingerprintHex;
+
+        // Serial Number
+        CHAR serialHex[128] = "";
+        size_t serialWritten = 0;
+        for (int i = ctx->pCertInfo->SerialNumber.cbData - 1; i >= 0; i--) {
+            serialWritten += sprintf(&serialHex[serialWritten], "%02x", ctx->pCertInfo->SerialNumber.pbData[i]);
+        }
+        c.SerialNumber = serialHex;
 
         // rest
         LOG_DEBUG("\tcertificates.c: \tGetting other data.");
@@ -177,7 +228,7 @@ void clog_certificates(clog_Arena scratch) {
     if (numCertificates == 0) {
         clog_ArenaAppend(&scratch, "\n(No certificates found in store '%s')", storeLocation);
     }
-    LOG_DEBUG("\tcertificates.c: \tEnd.");
+    LOG_DEBUG("\tcertificates.c: End.");
 }
 
 #ifdef STANDALONE
