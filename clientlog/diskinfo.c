@@ -86,10 +86,13 @@ LPCSTR diskinfo_PrettyGPTPartitionType(GUID type) {
 }
 
 void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena *a) {
+    LOG_DEBUG("\tdiskinfo.c: Getting Logical Drives.");
     DWORD drivebits = GetLogicalDrives();
+    LOG_DEBUG("\tdiskinfo.c: Logical drive bits '%lu'.", drivebits);
     WORD curr = 1;
     for (WORD i = 0; (i < 26) && drivebits; i++) {
         if (curr & drivebits) {
+            LOG_DEBUG("\tdiskinfo.c: Start of drive '%c:\\'.", 'A' + i);
             drivebits = drivebits - curr;
 
             diskinfo_Drive *drive = clog_ArenaAlloc(a, diskinfo_Drive, 1);
@@ -99,9 +102,11 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
             CHAR driveRaw[7];
             sprintf(driveRaw, "\\\\.\\%c:", 'a' + i);
 
+            LOG_DEBUG("\t\tdiskinfo.c: Opening drive file descriptor.");
             HANDLE hPhys = CreateFile(driveRaw, 0, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
             STORAGE_DEVICE_NUMBER storageInfo;
             DWORD bytesReturned;
+            LOG_DEBUG("\t\tdiskinfo.c: Reading device info from handle.");
             BOOL deviceNumberSuccess = DeviceIoControl(
                 hPhys,
                 IOCTL_STORAGE_GET_DEVICE_NUMBER,
@@ -114,6 +119,7 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
             CloseHandle(hPhys);
 
             if (deviceNumberSuccess) { // TODO
+                LOG_DEBUG("\t\tdiskinfo.c: Read device info from file descriptor. Adding drive.");
                 diskinfo_Drive *drivestack = disks[storageInfo.DeviceNumber].Drives;
                 diskinfo_Drive *drivestackPrev = NULL;
                 while (drivestack != NULL) {
@@ -121,8 +127,10 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
                     drivestack = drivestack->Next;
                 }
                 if (drivestackPrev == NULL) {
+                    LOG_DEBUG("\t\t\tdiskinfo.c: Drive added in new stack.");
                     disks[storageInfo.DeviceNumber].Drives = drive;
                 } else {
+                    LOG_DEBUG("\t\t\tdiskinfo.c: Drive added in previous stack.");
                     drivestackPrev->Next = drive;
                 }
 
@@ -130,8 +138,10 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
                 drive->Type = storageInfo.DeviceType;
             }
 
+            LOG_DEBUG("\t\tdiskinfo.c: Reading volume info.");
             GetVolumeInformation(drive->Root, drive->VolumeName, MAX_PATH + 1, NULL, 0, NULL, drive->FilesystemName, MAX_PATH + 1);
 
+            LOG_DEBUG("\t\tdiskinfo.c: Calculating volume size.");
             DWORD sectorsPerCluster, bytesPerSector, freeClusters, totalClusters;
             if (GetDiskFreeSpace(drive->Root, &sectorsPerCluster, &bytesPerSector, &freeClusters, &totalClusters)) {
                 ULONGLONG bytesPerCluster = sectorsPerCluster * bytesPerSector;
@@ -139,6 +149,8 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
                 drive->FreeSize = freeClusters * bytesPerCluster;
                 drive->BlockSize = bytesPerCluster;
             }
+
+            LOG_DEBUG("\tdiskinfo.c: End of drive '%c:\\'.", 'A' + i);
         }
 
         curr *= 2;
@@ -152,11 +164,13 @@ void clog_diskinfo(clog_Arena scratch) {
         clog_ArenaAppend(arena, __VA_ARGS__);                  \
     } while (0)
 
+    LOG_DEBUG("\tdiskinfo.c: Opening registry key HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\disk\\Enum.");
     HKEY hKey;
     RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\disk\\Enum", 0, KEY_READ, &hKey);
     DWORD numDisks, type, len = 64;
     RegGetValue(hKey, NULL, "Count", RRF_RT_REG_DWORD, &type, &numDisks, &len);
     RegCloseKey(hKey);
+    LOG_DEBUG("\tdiskinfo.c: Registry key value: %lu.", numDisks);
 
     diskinfo_Disk disks[numDisks];
     ZeroMemory(disks, numDisks * sizeof(diskinfo_Disk));
@@ -164,13 +178,16 @@ void clog_diskinfo(clog_Arena scratch) {
 
     clog_ArenaAppend(&scratch, "[diskinfo]");
     for (DWORD i = 0; i < numDisks; i++) {
+        LOG_DEBUG("\tdiskinfo.c: Start of physical drive '%lu'.", i);
         CHAR disk[64];
         sprintf(disk, "\\\\.\\PHYSICALDrive%lu", i);
 
+        LOG_DEBUG("\t\tdiskinfo.c: Opening disk file descriptor.");
         HANDLE hPhys = CreateFile(disk, 0, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         clog_Defer(&scratch, hPhys, RETURN_INT, &CloseHandle);
         ArenaIndentAppend(&scratch, 0, "%s", disk);
         if (hPhys == INVALID_HANDLE_VALUE) {
+            LOG_DEBUG("\t\tdiskinfo.c: Unable to open disk file descriptor.");
             ArenaIndentAppend(&scratch, 0, "(Unable to open drive)");
             clog_PopDefer(&scratch);
             continue;
@@ -181,6 +198,7 @@ void clog_diskinfo(clog_Arena scratch) {
         DRIVE_LAYOUT_INFORMATION_EX *driveInfo = clog_ArenaAlloc(&scratch, void, layoutBufsize);
         DWORD bytesReturned;
 
+        LOG_DEBUG("\t\tdiskinfo.c: Reading partition layout info from handle.");
         BOOL succ = DeviceIoControl(
             hPhys,
             IOCTL_DISK_GET_DRIVE_LAYOUT_EX, // dwIoControlCode
@@ -192,8 +210,10 @@ void clog_diskinfo(clog_Arena scratch) {
             NULL);
 
         if (!succ || driveInfo->PartitionCount == 0) {
+            LOG_DEBUG("\t\tdiskinfo.c: Unable to get partition layout info.");
             ArenaIndentAppend(&scratch, 1, "(Unable to get partition info)");
         } else {
+            LOG_DEBUG("\t\tdiskinfo.c: Found %lu partitions.", driveInfo->PartitionCount);
             ULONGLONG totalDiskLength = 0;
             for (WORD partitionIndex = 0; partitionIndex < driveInfo->PartitionCount; partitionIndex++) {
                 PARTITION_INFORMATION_EX partition = driveInfo->PartitionEntry[partitionIndex];
@@ -207,7 +227,8 @@ void clog_diskinfo(clog_Arena scratch) {
 
             diskinfo_Drive *drivestack = disks[i].Drives;
             while (drivestack != NULL) {
-                if (drivestack->Partition == INFINITE) {
+                if (drivestack->Partition == INFINITE && drivestack->Type == FILE_DEVICE_DISK) {
+                    LOG_DEBUG("\t\tdiskinfo.c: Printing info for drive with no partition, '%s'.", drivestack->VolumeName);
                     ArenaIndentAppend(&scratch, 1, "%s Drive %s (no partition)", diskinfo_PrettyDeviceType(drivestack->Type), drivestack->Root);
                     if (drivestack->VolumeName[0] != '\0') ArenaIndentAppend(&scratch, 2, "Volume name:\t%s", drivestack->VolumeName);
                     if (drivestack->FilesystemName[0] != '\0') ArenaIndentAppend(&scratch, 2, "File system:\t%s", drivestack->FilesystemName);
@@ -219,9 +240,12 @@ void clog_diskinfo(clog_Arena scratch) {
                 drivestack = drivestack->Next;
             }
 
+            LOG_DEBUG("\t\tdiskinfo.c: Iterating through partitions.");
             CHAR bytesTmp[16];
             for (DWORD partitionIndex = 0; partitionIndex < driveInfo->PartitionCount; partitionIndex++) {
                 PARTITION_INFORMATION_EX partition = driveInfo->PartitionEntry[partitionIndex];
+                LOG_DEBUG("\t\tdiskinfo.c: Partition %lu.", partitionIndex);
+                LOG_DEBUG("\t\t\tdiskinfo.c: Style %d.", partition.PartitionStyle);
                 if (partition.PartitionStyle == PARTITION_STYLE_MBR && partition.Mbr.PartitionType != PARTITION_ENTRY_UNUSED) {
                     ArenaIndentAppend(&scratch, 1, "Partition %lu (%9s, type %s)", partitionIndex + 1, clog_utils_PrettyBytes(partition.PartitionLength.QuadPart, 0, bytesTmp), diskinfo_PrettyMBRPartitionType(partition.Mbr.PartitionType));
                 } else if (partition.PartitionStyle == PARTITION_STYLE_GPT && partition.Gpt.PartitionType.Data1 != PARTITION_ENTRY_UNUSED) {
@@ -231,11 +255,12 @@ void clog_diskinfo(clog_Arena scratch) {
                 drivestack = disks[i].Drives;
                 while (drivestack != NULL) {
                     if (drivestack->Partition == partitionIndex + 1) {
+                        LOG_DEBUG("\t\t\tdiskinfo.c: Drive stack matched '%s'.", drivestack->VolumeName);
                         break;
                     }
                     drivestack = drivestack->Next;
                 }
-                if (drivestack != NULL) {
+                if (drivestack != NULL && drivestack->Type == FILE_DEVICE_DISK) {
                     ArenaIndentAppend(&scratch, 2, "%s Drive %s", diskinfo_PrettyDeviceType(drivestack->Type), drivestack->Root);
                     ArenaIndentAppend(&scratch, 3, "Volume name: %s", drivestack->VolumeName);
                     ArenaIndentAppend(&scratch, 3, "File system: %s", drivestack->FilesystemName);
@@ -243,10 +268,12 @@ void clog_diskinfo(clog_Arena scratch) {
                     ArenaIndentAppend(&scratch, 3, "Free space:  %s", clog_utils_PrettyBytes(drivestack->FreeSize, 0, bytesTmp));
                     ArenaIndentAppend(&scratch, 3, "Block size:  %s", clog_utils_PrettyBytes(drivestack->BlockSize, 0, bytesTmp));
                 }
+                LOG_DEBUG("\t\tdiskinfo.c: End of partition %lu.", partitionIndex);
             }
         }
 
         clog_PopDefer(&scratch);
+        LOG_DEBUG("\tdiskinfo.c: End of physical drive '%lu'.", i);
     }
 #undef ArenaIndentAppend
 }

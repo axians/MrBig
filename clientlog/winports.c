@@ -1,9 +1,12 @@
 #include "clientlog.h"
 #include <iphlpapi.h>
 
-/* We need to link with Iphlpapi.lib in Makefile.
+/* [winports] closely modelled after shell command 'netstat -ano'
+
+    We need to link with Iphlpapi.lib in Makefile.
    This file also needs Ws2_32.lib, but that is a requirement for other files too */
 
+#define MAX_PORT_ENTRIES 5000
 #define MAX_PORT 0xFFFF
 #define SIMILAR_ENTRIES_MAX_NUM 20
 
@@ -110,23 +113,26 @@ LPCSTR winports_PrettyPortState(DWORD state, CHAR *out) {
     }
 }
 
-void *winports_GetConnectionTable(const ULONG af, const winports_Protocol proto, clog_Arena *a) {
+void *winports_GetConnectionTable(const ULONG af, const winports_Protocol proto) {
+    // Real world use indicate that these tables can be enormous,
+    // so handled using standard allocation rather than arena. Remember to free!
     DWORD status = NO_ERROR, size = 0;
     void *result = NULL;
     if (TCP == proto) {
         status = GetExtendedTcpTable(NULL, &size, FALSE, af, TCP_TABLE_OWNER_PID_ALL, 0);
         if (status != ERROR_INSUFFICIENT_BUFFER) return NULL;
-        result = clog_ArenaAlloc(a, void, size);
+        result = malloc(size); // clog_ArenaAlloc(a, void, size);
+        if (result == NULL) return NULL;
         status = GetExtendedTcpTable(result, &size, TRUE, af, TCP_TABLE_OWNER_PID_ALL, 0);
     } else if (UDP == proto) {
         status = GetExtendedUdpTable(NULL, &size, FALSE, af, UDP_TABLE_OWNER_PID, 0);
         if (status != ERROR_INSUFFICIENT_BUFFER) return NULL;
-        result = clog_ArenaAlloc(a, void, size);
+        result = malloc(size); // clog_ArenaAlloc(a, void, size);
+        if (result == NULL) return NULL;
         status = GetExtendedUdpTable(result, &size, FALSE, af, UDP_TABLE_OWNER_PID, 0);
     }
-    if (status != NO_ERROR) {
-        result = NULL;
-    }
+    if (status != NO_ERROR) return NULL;
+
     return result;
 }
 
@@ -180,15 +186,16 @@ void winports_GetRow(winports_ConnectionTable *connections, DWORD i, const ULONG
     b = (void *)((intptr_t)a ^ (intptr_t)b); \
     a = (void *)((intptr_t)a ^ (intptr_t)b);
 
-#define SKIPPING_FMT "\n\t...IP %s and PID %lu spans above %d entries, and %lu more with highest local port %u"
 void winports_AppendConnections(winports_ConnectionTable *connections, const ULONG af, const winports_Protocol proto, clog_Arena *a) {
     winports_Record rData = {0}, rPrevData = {0};
     winports_Record *r = &rData, *rPrev = &rPrevData;
 
     CHAR portStateBuf[16], localAddressPortBuf[74], remoteAddressPortBuf[74];
-    DWORD numEntries = connections->TCP4.dwNumEntries; // Well... If it works, it works
+    DWORD numEntries = min(connections->TCP4.dwNumEntries /* Well... If it works, it works */, MAX_PORT_ENTRIES);
+
     BOOL skipping = FALSE;
     DWORD range = 1;
+    #define SKIPPING_FMT "\n\t...IP %s and PID %lu spans above %d entries, and %lu more with highest local port %u"
     for (DWORD i = 0; i < numEntries; i++) {
         PTR_SWAP(r, rPrev);
 
@@ -220,6 +227,10 @@ void winports_AppendConnections(winports_ConnectionTable *connections, const ULO
     if (skipping) {
         clog_ArenaAppend(a, SKIPPING_FMT, rPrev->LocalAddress, rPrev->PID, SIMILAR_ENTRIES_MAX_NUM, range - SIMILAR_ENTRIES_MAX_NUM, rPrev->LocalPort);
     }
+    #undef SKIPPING_FMT
+    if (connections->TCP4.dwNumEntries > MAX_PORT_ENTRIES) {
+        clog_ArenaAppend(a, "\n(+ %lu more %s %s entries)", connections->TCP4.dwNumEntries - MAX_PORT_ENTRIES,  proto == TCP ? "TCP" : "UDP", af == IPv4 ? "IPv4" : "IPv6");
+    }
 }
 
 void winports_AppendPortStatistics(ULONG af, winports_Protocol proto, DWORD numEntries, clog_Arena *a) {
@@ -232,35 +243,47 @@ void winports_AppendPortStatistics(ULONG af, winports_Protocol proto, DWORD numE
 }
 
 void clog_winports(clog_Arena scratch) {
-    MIB_TCPTABLE_OWNER_PID *tcpIpv4 = winports_GetConnectionTable(IPv4, TCP, &scratch);
-    MIB_TCP6TABLE_OWNER_PID *tcpIpv6 = winports_GetConnectionTable(IPv6, TCP, &scratch);
-    MIB_UDPTABLE_OWNER_PID *udpIpv4 = winports_GetConnectionTable(IPv4, UDP, &scratch);
-    MIB_UDP6TABLE_OWNER_PID *udpIpv6 = winports_GetConnectionTable(IPv6, UDP, &scratch);
+    struct {
+        winports_Protocol proto;
+        winports_IpVersion version;
+    } portGroups[] = {
+        {TCP, IPv4},
+        {TCP, IPv6},
+        {UDP, IPv4},
+        {UDP, IPv6},
+    };
+
+    winports_ConnectionTable *tables[lengthof(portGroups)];
+    for (int i = 0; i < lengthof(portGroups); i++)
+        tables[i] = winports_GetConnectionTable(portGroups[i].version, portGroups[i].proto);
 
     clog_ArenaAppend(&scratch, "[winportsused]");
     clog_ArenaAppend(&scratch, "\n%-15s\t%-15s\t%15s\t%13s", "IP version", "Protocol", "Ports Used #", "Ports Used %");
-    if (tcpIpv4 != NULL) winports_AppendPortStatistics(IPv4, TCP, tcpIpv4->dwNumEntries, &scratch);
-    if (tcpIpv6 != NULL) winports_AppendPortStatistics(IPv6, TCP, tcpIpv6->dwNumEntries, &scratch);
-    if (udpIpv4 != NULL) winports_AppendPortStatistics(IPv4, UDP, udpIpv4->dwNumEntries, &scratch);
-    if (udpIpv6 != NULL) winports_AppendPortStatistics(IPv6, UDP, udpIpv6->dwNumEntries, &scratch);
-
-    BOOL allErrored = tcpIpv4 == NULL && tcpIpv6 == NULL && udpIpv4 == NULL && udpIpv6 == NULL;
-    BOOL anyErrored = tcpIpv4 == NULL || tcpIpv6 == NULL || udpIpv4 == NULL || udpIpv6 == NULL;
-    if (allErrored)
+    int errored = 0;
+    for (int i = 0; i < lengthof(portGroups); i++) {
+        if (tables[i] != NULL)
+            winports_AppendPortStatistics(portGroups[i].version, portGroups[i].proto, tables[i]->TCP4.dwNumEntries, &scratch);
+        else
+            errored++;
+    }
+    if (errored == lengthof(portGroups))
         clog_ArenaAppend(&scratch, "\n(Unable to get networking statistics)");
-    else if (anyErrored)
+    else if (errored > 0)
         clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
 
     clog_ArenaAppend(&scratch, "\n[winports]");
     clog_ArenaAppend(&scratch, "\n%-7s\t%-39s\t%-39s\t%-15s\t%7s", "Proto", "Local Address", "Foreign Address", "State", "PID");
-    if (tcpIpv4 != NULL) winports_AppendConnections((winports_ConnectionTable *)tcpIpv4, IPv4, TCP, &scratch);
-    if (tcpIpv6 != NULL) winports_AppendConnections((winports_ConnectionTable *)tcpIpv6, IPv6, TCP, &scratch);
-    if (udpIpv4 != NULL) winports_AppendConnections((winports_ConnectionTable *)udpIpv4, IPv4, UDP, &scratch);
-    if (udpIpv6 != NULL) winports_AppendConnections((winports_ConnectionTable *)udpIpv6, IPv6, UDP, &scratch);
-
-    if (allErrored)
+    errored = 0;
+    for (int i = 0; i < lengthof(portGroups); i++) {
+        if (tables[i] != NULL) {
+            winports_AppendConnections(tables[i], portGroups[i].version, portGroups[i].proto, &scratch);
+            free(tables[i]);
+        } else
+            errored++;
+    }
+    if (errored == lengthof(portGroups))
         clog_ArenaAppend(&scratch, "\n(Unable to get networking statistics)");
-    else if (anyErrored)
+    else if (errored > 0)
         clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
 }
 

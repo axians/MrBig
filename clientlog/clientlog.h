@@ -6,6 +6,7 @@
 
 #define STR__IMPL(x) #x
 #define STR(x) STR__IMPL(x) // indirection to expand macros in x
+#define lengthof(x) (sizeof(x) / sizeof(*(x)))
 
 #define LOG_DEBUG(...) \
     if (clog_mrlog) clog_mrlog("\n" __VA_ARGS__);
