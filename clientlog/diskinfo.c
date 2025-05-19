@@ -98,6 +98,11 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
             diskinfo_Drive *drive = clog_ArenaAlloc(a, diskinfo_Drive, 1);
             *drive = (diskinfo_Drive){0};
             sprintf(drive->Root, "%c:\\", 'A' + i);
+            UINT dtype = GetDriveType(drive->Root);
+            if (dtype != DRIVE_FIXED) {
+                LOG_DEBUG("\tdiskinfo.c: Skipped drive '%c:\\'. Drive is not fixed storage, or has no volumes.", 'A' + i);
+                continue;
+            }
 
             CHAR driveRaw[7];
             sprintf(driveRaw, "\\\\.\\%c:", 'a' + i);
