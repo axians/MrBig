@@ -70,32 +70,15 @@ void clog_osversion(clog_Arena scratch) {
         RegCloseKey(hKey);
     }
 
-    HMODULE hNtdll;
-    GetModuleHandleEx(0, "ntdll.dll", &hNtdll);
     OSVERSIONINFOEXW osVersionInfo;
     BOOL versionSuccess = FALSE;
-    if (FALSE && hNtdll) {
-        FARPROC pRtlGetVersion = GetProcAddress(hNtdll, "RtlGetVersion");
-        if (pRtlGetVersion != NULL) {
-            RTL_OSVERSIONINFOEXW rovi = {0};
-            rovi.dwOSVersionInfoSize = sizeof rovi;
-            if (pRtlGetVersion(&rovi) == ERROR_SUCCESS) {
-                osVersionInfo = rovi;
-                versionSuccess = TRUE;
-            }
-        }
-        FreeLibrary(hNtdll);
-    }
 
     clog_ArenaAppend(&scratch, "[osversion]");
-    if (!versionSuccess) {
-        // if (debug) mrlog("Unable to get OS version info for clientlog from ntdll. Trying GetVersionEx instead.");
-        OSVERSIONINFOEXW ovi = {0};
-        ovi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-        if (GetVersionExW((LPOSVERSIONINFOW)&ovi)) {
-            osVersionInfo = ovi;
-            versionSuccess = TRUE;
-        }
+    OSVERSIONINFOEXW ovi = {0};
+    ovi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
+    if (GetVersionExW((LPOSVERSIONINFOW)&ovi)) {
+        osVersionInfo = ovi;
+        versionSuccess = TRUE;
     }
 
     CHAR osName[64];

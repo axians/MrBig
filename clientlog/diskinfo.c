@@ -190,10 +190,8 @@ void clog_diskinfo(clog_Arena scratch) {
         LOG_DEBUG("\t\tdiskinfo.c: Opening disk file descriptor.");
         HANDLE hPhys = CreateFile(disk, 0, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         clog_Defer(&scratch, hPhys, RETURN_INT, &CloseHandle);
-        ArenaIndentAppend(&scratch, 0, "%s", disk);
         if (hPhys == INVALID_HANDLE_VALUE) {
             LOG_DEBUG("\t\tdiskinfo.c: Unable to open disk file descriptor.");
-            ArenaIndentAppend(&scratch, 0, "(Unable to open drive)");
             clog_PopDefer(&scratch);
             continue;
         }
@@ -216,8 +214,8 @@ void clog_diskinfo(clog_Arena scratch) {
 
         if (!succ || driveInfo->PartitionCount == 0) {
             LOG_DEBUG("\t\tdiskinfo.c: Unable to get partition layout info.");
-            ArenaIndentAppend(&scratch, 1, "(Unable to get partition info)");
         } else {
+            ArenaIndentAppend(&scratch, 0, "%s", disk);
             LOG_DEBUG("\t\tdiskinfo.c: Found %lu partitions.", driveInfo->PartitionCount);
             ULONGLONG totalDiskLength = 0;
             for (WORD partitionIndex = 0; partitionIndex < driveInfo->PartitionCount; partitionIndex++) {
@@ -238,9 +236,9 @@ void clog_diskinfo(clog_Arena scratch) {
                     if (drivestack->VolumeName[0] != '\0') ArenaIndentAppend(&scratch, 2, "Volume name:\t%s", drivestack->VolumeName);
                     if (drivestack->FilesystemName[0] != '\0') ArenaIndentAppend(&scratch, 2, "File system:\t%s", drivestack->FilesystemName);
                     CHAR bytesTmp[16];
-                    if (drivestack->TotalSize) ArenaIndentAppend(&scratch, 2, "Total space: %s", clog_utils_PrettyBytes(drivestack->TotalSize, 0, bytesTmp));
-                    if (drivestack->FreeSize) ArenaIndentAppend(&scratch, 2, "Free space:  %s", clog_utils_PrettyBytes(drivestack->FreeSize, 0, bytesTmp));
-                    if (drivestack->BlockSize) ArenaIndentAppend(&scratch, 2, "Block size:  %s", clog_utils_PrettyBytes(drivestack->BlockSize, 0, bytesTmp));
+                    if (drivestack->TotalSize) ArenaIndentAppend(&scratch, 2, "Total space: %9s", clog_utils_PrettyBytes(drivestack->TotalSize, 0, bytesTmp));
+                    if (drivestack->FreeSize) ArenaIndentAppend(&scratch, 2, "Free space:  %9s", clog_utils_PrettyBytes(drivestack->FreeSize, 0, bytesTmp));
+                    if (drivestack->BlockSize) ArenaIndentAppend(&scratch, 2, "Block size:  %9s", clog_utils_PrettyBytes(drivestack->BlockSize, 0, bytesTmp));
                 }
                 drivestack = drivestack->Next;
             }
@@ -269,9 +267,9 @@ void clog_diskinfo(clog_Arena scratch) {
                     ArenaIndentAppend(&scratch, 2, "%s Drive %s", diskinfo_PrettyDeviceType(drivestack->Type), drivestack->Root);
                     ArenaIndentAppend(&scratch, 3, "Volume name: %s", drivestack->VolumeName);
                     ArenaIndentAppend(&scratch, 3, "File system: %s", drivestack->FilesystemName);
-                    ArenaIndentAppend(&scratch, 3, "Total space: %s", clog_utils_PrettyBytes(drivestack->TotalSize, 0, bytesTmp));
-                    ArenaIndentAppend(&scratch, 3, "Free space:  %s", clog_utils_PrettyBytes(drivestack->FreeSize, 0, bytesTmp));
-                    ArenaIndentAppend(&scratch, 3, "Block size:  %s", clog_utils_PrettyBytes(drivestack->BlockSize, 0, bytesTmp));
+                    ArenaIndentAppend(&scratch, 3, "Total space: %9s", clog_utils_PrettyBytes(drivestack->TotalSize, 0, bytesTmp));
+                    ArenaIndentAppend(&scratch, 3, "Free space:  %9s", clog_utils_PrettyBytes(drivestack->FreeSize, 0, bytesTmp));
+                    ArenaIndentAppend(&scratch, 3, "Block size:  %9s", clog_utils_PrettyBytes(drivestack->BlockSize, 0, bytesTmp));
                 }
                 LOG_DEBUG("\t\tdiskinfo.c: End of partition %lu.", partitionIndex);
             }
