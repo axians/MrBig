@@ -55,6 +55,9 @@ jobs:
     - name: Build MrBig
       shell: bash
       run: |
+        pwd
+        ls "${{ github.workspace }}/../"
+        ls "${{ github.workspace }}"
         cd "${{ github.workspace }}"
         make
         
