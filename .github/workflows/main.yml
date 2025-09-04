@@ -70,6 +70,7 @@ jobs:
         fi
         
     - name: Upload build artifacts
+      if: github.event_name == 'release'
       uses: actions/upload-artifact@v4
       with:
         name: mrbig-binaries
@@ -77,4 +78,14 @@ jobs:
           X64/mrbig64.exe
           X86/mrbig.exe
         if-no-files-found: warn
-        
+
+    - name: Upload Release Assets
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          X64/mrbig64.exe
+          X86/mrbig.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
