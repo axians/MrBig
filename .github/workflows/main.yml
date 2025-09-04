@@ -55,23 +55,19 @@ jobs:
 
     - name: Create release archive
       if: startsWith(github.ref, 'refs/tags/')
-      shell: bash
+      shell: msys2 {0}
       run: |
-        cd "${{ github.workspace }}"
         mkdir -p release
         # Copy built binaries to release directory
         if [ -f "mrbig.exe" ]; then
           cp mrbig.exe release/
         fi
-        if [ -d "X64" ] && [ -f "X64/mrbig.exe" ]; then
-          cp X64/mrbig.exe release/mrbig-x64.exe
+        if [ -d "X64" ] && [ -f "X64/mrbig64.exe" ]; then
+          cp X64/mrbig64.exe release/mrbig64.exe
         fi
         if [ -d "X86" ] && [ -f "X86/mrbig.exe" ]; then
-          cp X86/mrbig.exe release/mrbig-x86.exe
+          cp X86/mrbig.exe release/mrbig.exe
         fi
-        # Create archive
-        cd release
-        zip -r ../mrbig-release.zip .
         
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
