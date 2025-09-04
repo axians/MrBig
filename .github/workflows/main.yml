@@ -1,0 +1,120 @@
+name: Build and Release MrBig
+
+on:
+#   push:
+#     branches: [ main, master ]
+#     tags: [ 'v*' ]
+#   pull_request:
+    # branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Cygwin
+      uses: cygwin/cygwin-install-action@master
+      with:
+        packages: make zip gcc-core gcc-g++ binutils
+        
+    - name: Setup MinGW-w64
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-make
+          mingw-w64-i686-gcc
+          mingw-w64-i686-make
+          make
+          
+    - name: Add tools to PATH
+      shell: bash
+      run: |
+        echo "C:/cygwin/bin" >> $GITHUB_PATH
+        echo "C:/msys64/mingw64/bin" >> $GITHUB_PATH
+        echo "C:/msys64/mingw32/bin" >> $GITHUB_PATH
+        echo "C:/msys64/usr/bin" >> $GITHUB_PATH
+        
+    - name: Verify tool installation
+      shell: bash
+      run: |
+        echo "Checking tool availability..."
+        which make || echo "make not found"
+        which sh || echo "sh not found"
+        which zip || echo "zip not found"
+        which gcc || echo "gcc not found"
+        echo "Current PATH:"
+        echo $PATH
+        
+    - name: Build MrBig
+      shell: bash
+      run: |
+        cd "${{ github.workspace }}"
+        make
+        
+    - name: Create release archive
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: bash
+      run: |
+        cd "${{ github.workspace }}"
+        mkdir -p release
+        # Copy built binaries to release directory
+        if [ -f "mrbig.exe" ]; then
+          cp mrbig.exe release/
+        fi
+        if [ -d "X64" ] && [ -f "X64/mrbig.exe" ]; then
+          cp X64/mrbig.exe release/mrbig-x64.exe
+        fi
+        if [ -d "X86" ] && [ -f "X86/mrbig.exe" ]; then
+          cp X86/mrbig.exe release/mrbig-x86.exe
+        fi
+        # Create archive
+        cd release
+        zip -r ../mrbig-release.zip .
+        
+    # - name: Upload build artifacts
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: mrbig-binaries
+    #     path: |
+    #       mrbig.exe
+    #       X64/mrbig.exe
+    #       X86/mrbig.exe
+    #     if-no-files-found: warn
+        
+    # - name: Create GitHub Release
+    #   if: startsWith(github.ref, 'refs/tags/')
+    #   id: create_release
+    #   uses: actions/create-release@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     tag_name: ${{ github.ref_name }}
+    #     release_name: MrBig ${{ github.ref_name }}
+    #     body: |
+    #       Release of MrBig ${{ github.ref_name }}
+          
+    #       Built with:
+    #       - Cygwin (sh, make, zip)
+    #       - MinGW-w64 (64-bit and 32-bit toolchains)
+          
+    #       This release includes both 32-bit and 64-bit Windows binaries.
+    #     draft: false
+    #     prerelease: false
+        
+    # - name: Upload Release Asset
+    #   if: startsWith(github.ref, 'refs/tags/')
+    #   uses: actions/upload-release-asset@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     asset_path: ./mrbig-release.zip
+    #     asset_name: mrbig-${{ github.ref_name }}.zip
+    #     asset_content_type: application/zip
