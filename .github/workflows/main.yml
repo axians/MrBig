@@ -58,10 +58,17 @@ jobs:
     - name: Build MrBig (MSYS2 alternative)
       shell: msys2 {0}
       run: |
-        echo $PATH
-        echo "Trying build in MSYS2 environment..."
+        export PATH="/mingw64/bin:/mingw32/bin:/usr/bin:$PATH"
+        echo "Updated PATH: $PATH"
+        echo "Checking available compilers:"
+        which gcc || echo "gcc not found"
+        which x86_64-w64-mingw32-gcc || echo "x86_64-w64-mingw32-gcc not found"
+        which i686-w64-mingw32-gcc || echo "i686-w64-mingw32-gcc not found"
+        echo "Current working directory:"
         pwd
+        echo "Contents:"
         ls -la
+        echo "Running make..."
         make
 
     - name: Create release archive
