@@ -47,27 +47,23 @@ jobs:
     - name: Add tools to PATH
       shell: bash
       run: |
-        echo "C:/cygwin/bin" >> $GITHUB_PATH
-        echo "C:/msys64/mingw64/bin" >> $GITHUB_PATH
-        echo "C:/msys64/mingw32/bin" >> $GITHUB_PATH
-        echo "C:/msys64/usr/bin" >> $GITHUB_PATH
+        echo "D:/cygwin/bin" >> $GITHUB_PATH
+        echo "D:/msys64/mingw64/bin" >> $GITHUB_PATH
+        echo "D:/msys64/mingw32/bin" >> $GITHUB_PATH
+        echo "D:/msys64/usr/bin" >> $GITHUB_PATH
         
-    - name: Verify tool installation
-      shell: bash
+        
+        
+        
+    - name: Build MrBig (MSYS2 alternative)
+      shell: msys2 {0}
       run: |
-        echo "Checking tool availability..."
-        which make || echo "make not found"
-        which sh || echo "sh not found"
-        which zip || echo "zip not found"
-        which gcc || echo "gcc not found"
-        echo "Current PATH:"
         echo $PATH
-        
-    - name: Build MrBig
-      shell: bash
-      run: |
+        echo "Trying build in MSYS2 environment..."
+        pwd
+        ls -la
         make
-        
+
     - name: Create release archive
       if: startsWith(github.ref, 'refs/tags/')
       shell: bash
