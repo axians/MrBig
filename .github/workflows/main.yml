@@ -1,11 +1,8 @@
 name: Build and Release MrBig
 
 on:
-#   push:
-#     branches: [ main, master ]
-#     tags: [ 'v*' ]
-#   pull_request:
-    # branches: [ main, master ]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -44,30 +41,15 @@ jobs:
         echo Looking for Makefile:
         dir "${{ github.workspace }}\Makefile"
         
-    - name: Add tools to PATH
-      shell: bash
-      run: |
-        echo "D:/cygwin/bin" >> $GITHUB_PATH
-        echo "D:/msys64/mingw64/bin" >> $GITHUB_PATH
-        echo "D:/msys64/mingw32/bin" >> $GITHUB_PATH
-        echo "D:/msys64/usr/bin" >> $GITHUB_PATH
         
-        
-        
-        
-    - name: Build MrBig (MSYS2 alternative)
+    - name: Build MrBig
       shell: msys2 {0}
       run: |
         export PATH="/mingw64/bin:/mingw32/bin:/usr/bin:$PATH"
-        echo "Updated PATH: $PATH"
         echo "Checking available compilers:"
         which gcc || echo "gcc not found"
         which x86_64-w64-mingw32-gcc || echo "x86_64-w64-mingw32-gcc not found"
         which i686-w64-mingw32-gcc || echo "i686-w64-mingw32-gcc not found"
-        echo "Current working directory:"
-        pwd
-        echo "Contents:"
-        ls -la
         echo "Running make..."
         make
 
@@ -91,43 +73,12 @@ jobs:
         cd release
         zip -r ../mrbig-release.zip .
         
-    # - name: Upload build artifacts
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: mrbig-binaries
-    #     path: |
-    #       mrbig.exe
-    #       X64/mrbig.exe
-    #       X86/mrbig.exe
-    #     if-no-files-found: warn
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mrbig-binaries
+        path: |
+          X64/mrbig64.exe
+          X86/mrbig.exe
+        if-no-files-found: warn
         
-    # - name: Create GitHub Release
-    #   if: startsWith(github.ref, 'refs/tags/')
-    #   id: create_release
-    #   uses: actions/create-release@v1
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   with:
-    #     tag_name: ${{ github.ref_name }}
-    #     release_name: MrBig ${{ github.ref_name }}
-    #     body: |
-    #       Release of MrBig ${{ github.ref_name }}
-          
-    #       Built with:
-    #       - Cygwin (sh, make, zip)
-    #       - MinGW-w64 (64-bit and 32-bit toolchains)
-          
-    #       This release includes both 32-bit and 64-bit Windows binaries.
-    #     draft: false
-    #     prerelease: false
-        
-    # - name: Upload Release Asset
-    #   if: startsWith(github.ref, 'refs/tags/')
-    #   uses: actions/upload-release-asset@v1
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   with:
-    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-    #     asset_path: ./mrbig-release.zip
-    #     asset_name: mrbig-${{ github.ref_name }}.zip
-    #     asset_content_type: application/zip
