@@ -113,21 +113,24 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
             error != ERROR_EVT_UNRESOLVED_PARAMETER_INSERT &&
             error != ERROR_INSUFFICIENT_BUFFER) {
             EvtClose(pmHandle);
+            EvtClose(contextHandle);
             return result;
         }
 
         WCHAR messageBuffer[bufferNeeded];
         status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL, EvtFormatMessageEvent, bufferNeeded, messageBuffer, &bufferNeeded);
-        EvtClose(pmHandle);
         error = GetLastError();
+        EvtClose(pmHandle);
         if (!status &&
             error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
             error != ERROR_EVT_UNRESOLVED_PARAMETER_INSERT) {
+            EvtClose(contextHandle);
             return result;
         }
         wcstombs(result.Message, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
     }
 
+    EvtClose(contextHandle);
     return result;
 }
 
