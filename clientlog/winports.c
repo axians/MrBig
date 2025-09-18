@@ -113,21 +113,23 @@ LPCSTR winports_PrettyPortState(DWORD state, CHAR *out) {
     }
 }
 
-void *winports_GetConnectionTable(const ULONG af, const winports_Protocol proto) {
+void *winports_GetConnectionTable(const ULONG af, const winports_Protocol proto, clog_Arena *a) {
     // Real world use indicate that these tables can be enormous,
-    // so handled using standard allocation rather than arena. Remember to free!
+    // so we allocate space using malloc rather than arena. Remember to free!
     DWORD status = NO_ERROR, size = 0;
     void *result = NULL;
     if (TCP == proto) {
         status = GetExtendedTcpTable(NULL, &size, FALSE, af, TCP_TABLE_OWNER_PID_ALL, 0);
         if (status != ERROR_INSUFFICIENT_BUFFER) return NULL;
         result = malloc(size); // clog_ArenaAlloc(a, void, size);
+        clog_Defer(a, result, RETURN_VOID, &free);
         if (result == NULL) return NULL;
         status = GetExtendedTcpTable(result, &size, TRUE, af, TCP_TABLE_OWNER_PID_ALL, 0);
     } else if (UDP == proto) {
         status = GetExtendedUdpTable(NULL, &size, FALSE, af, UDP_TABLE_OWNER_PID, 0);
         if (status != ERROR_INSUFFICIENT_BUFFER) return NULL;
         result = malloc(size); // clog_ArenaAlloc(a, void, size);
+        clog_Defer(a, result, RETURN_VOID, &free);
         if (result == NULL) return NULL;
         status = GetExtendedUdpTable(result, &size, FALSE, af, UDP_TABLE_OWNER_PID, 0);
     }
@@ -255,7 +257,7 @@ void clog_winports(clog_Arena scratch) {
 
     winports_ConnectionTable *tables[lengthof(portGroups)];
     for (int i = 0; i < lengthof(portGroups); i++)
-        tables[i] = winports_GetConnectionTable(portGroups[i].version, portGroups[i].proto);
+        tables[i] = winports_GetConnectionTable(portGroups[i].version, portGroups[i].proto, &scratch);
 
     clog_ArenaAppend(&scratch, "[winportsused]");
     clog_ArenaAppend(&scratch, "\n%-15s\t%-15s\t%15s\t%13s", "IP version", "Protocol", "Ports Used #", "Ports Used %");
@@ -277,10 +279,10 @@ void clog_winports(clog_Arena scratch) {
     for (int i = 0; i < lengthof(portGroups); i++) {
         if (tables[i] != NULL) {
             winports_AppendConnections(tables[i], portGroups[i].version, portGroups[i].proto, &scratch);
-            free(tables[i]);
         } else
             errored++;
     }
+    clog_PopDeferAll(&scratch); // free malloced memory in winports_GetConnectionTable
     if (errored == lengthof(portGroups))
         clog_ArenaAppend(&scratch, "\n(Unable to get networking statistics)");
     else if (errored > 0)

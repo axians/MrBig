@@ -39,7 +39,7 @@ processes_Handle clog_processes_StartQuery(clog_Arena *a) {
     state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\ID Process", 0, &idProcess);
     if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
 
-    state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\Working Set", 0, &workingSet);
+    state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\Working Set - Private", 0, &workingSet);
     if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
 
     state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\% Processor Time", 0, &processorTime);
@@ -68,8 +68,7 @@ Cleanup:
 
 CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) { // TODO: Cache lookups
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
-    if (process) clog_Defer(a, process, RETURN_INT, &CloseHandle);
-
+    clog_Defer(a, process, RETURN_INT, &CloseHandle);
     HANDLE processToken = NULL;
     if (!OpenProcessToken(process, TOKEN_QUERY, &processToken)) {
         return "-";
@@ -116,7 +115,7 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
     BYTE processorTimes[bufsize];
 
     PdhGetFormattedCounterArray(state->IDProcess, PDH_FMT_LONG, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)idProcesses);
-    PdhGetFormattedCounterArray(state->WorkingSet, PDH_FMT_LONG, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)workingSets);
+    PdhGetFormattedCounterArray(state->WorkingSet, PDH_FMT_LARGE, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)workingSets);
     result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)processorTimes);
     if (result.ErrorCode == ERROR_SUCCESS) {
         result.NumRows = numItems;
@@ -128,7 +127,7 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
             memcpy(heapProcessName, processName, processNameLen + 1);
             LONG processID = ((PDH_FMT_COUNTERVALUE_ITEM *)idProcesses)[i].FmtValue.longValue;
             CHAR *user = processes_GetProcessUser(processID, a);
-            clog_PopDeferAll(a); // Close handles from processes_GetProcessUser
+            clog_PopDeferAll(a);
 
             rows[i] = (processes_TableRow){
                 .Process = heapProcessName,
@@ -248,7 +247,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     clog_ArenaAppend(a, "[processes]");
     if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareName, a);
         processes_AppendTable(endedQuery, endedQuery.NumRows, a);
@@ -256,7 +255,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     clog_ArenaAppend(a, "[topprocessescpu]");
     if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareCPU, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
@@ -264,7 +263,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     clog_ArenaAppend(a, "[topprocessesmemory]");
     if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareMemory, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);

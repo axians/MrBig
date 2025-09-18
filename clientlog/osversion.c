@@ -67,8 +67,8 @@ void clog_osversion(clog_Arena scratch) {
     DWORD lenProduct = 64;
     if (productStatus == ERROR_SUCCESS) {
         productStatus = RegGetValue(hKey, NULL, "productName", RRF_RT_REG_SZ, &typeProduct, productName, &lenProduct);
-        RegCloseKey(hKey);
     }
+    RegCloseKey(hKey);
 
     OSVERSIONINFOEXW osVersionInfo;
     BOOL versionSuccess = FALSE;
@@ -131,7 +131,8 @@ void clog_osversion(clog_Arena scratch) {
     }
     if (osVersionInfo.szCSDVersion[0] != '\0') {
         CHAR servicePack[32];
-        wcstombs(servicePack, osVersionInfo.szCSDVersion, 64);
+        size_t servicePackLen = wcstombs(servicePack, osVersionInfo.szCSDVersion, 32);
+        if (servicePackLen > 31) servicePack[31] = '\0';
         snprintf(&osName[osNameWritten], 64 - osNameWritten, " %s", servicePack);
     }
 

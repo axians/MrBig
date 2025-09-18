@@ -62,7 +62,7 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
 
 size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
     size_t written = 0;
-    const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
+    CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
     if (!oIDInfo) {
         // Unknown OID;
         out[0] = '\0';
@@ -129,7 +129,7 @@ WINBOOL CertCloseStoreWrapper(HCERTSTORE h) {
 }
 
 void clog_certificates(clog_Arena scratch) {
-    const LPSTR storeLocation = "MY";
+    LPSTR storeLocation = "MY";
 
     clog_ArenaAppend(&scratch, "[certificates]");
 
@@ -140,7 +140,7 @@ void clog_certificates(clog_Arena scratch) {
     // HCERTSTORE hStore = CertOpenSystemStoreA(0, storeLocation);
     // CertControlStore(hStore, 0, CERT_STORE_CTRL_AUTO_RESYNC, NULL);
 
-    const CERT_CONTEXT *ctx = NULL;
+    CERT_CONTEXT *ctx = NULL;
     CHAR certificateBuf[CERTIFICATES_ROW_SIZE];
     DWORD numCertificates = 0;
 

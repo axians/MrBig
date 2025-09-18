@@ -65,11 +65,12 @@ LPSTR who_PrettySession(who_Session *session, LPSTR out) {
 }
 
 DWORD who_GetSessions(DWORD maxNumSessions, DWORD *numRetrievedSessions, who_Session *output) {
-    PWTS_SESSION_INFO sessions;
+    PWTS_SESSION_INFO sessions = NULL;
     *numRetrievedSessions = 0;
 
     BOOL didRetrieveSessions = WTSEnumerateSessions(WTS_CURRENT_SERVER_HANDLE, 0, 1, &sessions, numRetrievedSessions);
     if (!didRetrieveSessions) {
+        WTSFreeMemory(sessions);
         return 0;
     }
 

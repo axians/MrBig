@@ -32,8 +32,8 @@ LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize) {
  * @return The input parameter "out" for convenience.
  */
 LPSTR clog_utils_PrettyBytes(ULONGLONG bytes, DWORD target, LPSTR out) {
-    const DOUBLE LOG1024E = 0.144269504088896340736;
-    const LPCTSTR prefixes[] = {"", "K", "M", "G", "T"};
+    static DOUBLE LOG1024E = 0.144269504088896340736;
+    static LPCTSTR prefixes[] = {"", "K", "M", "G", "T"};
 
     // Given bytes = 1024^magnitude, then
     // magnitude = log_1024(bytes) = ln(bytes) * log_1024(e),
@@ -81,6 +81,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     if (!CreatePipe(&hPipeOutputRead, &hPipeOutputWrite, &securityAttributes, 0)) {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 1.%#010x.)", status);
+        CloseHandle(hPipeOutputRead);
+        CloseHandle(hPipeOutputWrite);
         return status;
     }
 
@@ -118,6 +120,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, could not create process from '%s'. Error code 3.%#010x.)", cmdline, status);
         CloseHandle(hPipeOutputRead);
+        CloseHandle(procInfo.hProcess);
+        CloseHandle(procInfo.hThread);
         return status;
     }
 
@@ -132,6 +136,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
             DWORD lastError = GetLastError();
             clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 6.%lu.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status, lastError);
         }
+        CloseHandle(procInfo.hProcess);
+        CloseHandle(procInfo.hThread);
         CloseHandle(hPipeOutputRead);
         return status;
     }

@@ -10,12 +10,12 @@
 // For example, a writing 3600 * 1000 instead of 3600000 will not work
 #define MAX_EVENT_AGE_MS 3600000
 
-const WCHAR *CHANNELS[] = {
+static WCHAR *CHANNELS[] = {
     L"Application",
     L"Setup",
     L"System",
 };
-const size_t NUM_CHANNELS = sizeof(CHANNELS) / sizeof(*CHANNELS);
+static size_t NUM_CHANNELS = sizeof(CHANNELS) / sizeof(*CHANNELS);
 
 typedef struct {
     ULONGLONG Timestamp;
@@ -88,7 +88,8 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
     LPCWSTR providerName = NULL;
     if (providerNamePending.Type != EvtVarTypeNull) {
         providerName = providerNamePending.StringVal;
-        wcstombs(result.Provider, providerName, MAX_PROVIDER_NAME_LENGTH);
+        size_t providerNameWritten = wcstombs(result.Provider, providerName, MAX_PROVIDER_NAME_LENGTH);
+        if (providerNameWritten >= MAX_PROVIDER_NAME_LENGTH) result.Provider[MAX_PROVIDER_NAME_LENGTH - 1] = '\0';
     }
 
     EVT_VARIANT eventIdPending = eventSystemProperties[EvtSystemEventID];
@@ -127,7 +128,8 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
             EvtClose(contextHandle);
             return result;
         }
-        wcstombs(result.Message, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
+        size_t messageWritten = wcstombs(result.Message, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
+        if (messageWritten >= MAX_EVENT_MESSAGE_SIZE) result.Message[MAX_EVENT_MESSAGE_SIZE - 1] = '\0';
     }
 
     EvtClose(contextHandle);
@@ -159,6 +161,7 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
         } else {
             clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %lfh.)", MAX_EVENT_AGE_MS / 3600000.0);
         }
+        clog_PopDefer(&scratch);
     }
 }
 

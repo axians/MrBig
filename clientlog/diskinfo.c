@@ -123,7 +123,7 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
                 NULL);
             CloseHandle(hPhys);
 
-            if (deviceNumberSuccess) { // TODO
+            if (deviceNumberSuccess) { // TODO handle error
                 LOG_DEBUG("\t\tdiskinfo.c: Read device info from file descriptor. Adding drive.");
                 diskinfo_Drive *drivestack = disks[storageInfo.DeviceNumber].Drives;
                 diskinfo_Drive *drivestackPrev = NULL;
@@ -189,14 +189,13 @@ void clog_diskinfo(clog_Arena scratch) {
 
         LOG_DEBUG("\t\tdiskinfo.c: Opening disk file descriptor.");
         HANDLE hPhys = CreateFile(disk, 0, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        clog_Defer(&scratch, hPhys, RETURN_INT, &CloseHandle);
         if (hPhys == INVALID_HANDLE_VALUE) {
             LOG_DEBUG("\t\tdiskinfo.c: Unable to open disk file descriptor.");
-            clog_PopDefer(&scratch);
             continue;
         }
+        clog_Defer(&scratch, hPhys, RETURN_INT, &CloseHandle);
 
-        const SIZE_T layoutBufsize = sizeof(DRIVE_LAYOUT_INFORMATION_EX) + 16 * sizeof(PARTITION_INFORMATION_EX);
+        SIZE_T layoutBufsize = sizeof(DRIVE_LAYOUT_INFORMATION_EX) + 16 * sizeof(PARTITION_INFORMATION_EX);
 
         DRIVE_LAYOUT_INFORMATION_EX *driveInfo = clog_ArenaAlloc(&scratch, void, layoutBufsize);
         DWORD bytesReturned;

@@ -62,15 +62,13 @@ EVENTLOGRECORD *reboots_LoadEvents(HANDLE hEventLog, DWORD *pnBytesRead, clog_Ar
                               nNumberOfBytesToRead,
                               pnBytesRead,
                               &pnMinNumberOfBytesNeeded)) {
-                status = GetLastError();
-                clog_ThrowError(a, status);
+                // status = GetLastError();
+                // clog_ThrowError(a, status);
+                return NULL;
             } else {
                 return lpBuffer;
             }
         } else {
-            if (ERROR_HANDLE_EOF != status) {
-                clog_ThrowError(a, status);
-            }
             return NULL;
         }
     }

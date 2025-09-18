@@ -215,8 +215,9 @@ static BOOL disp_message(char *log, char *source_name, char *entry_name,
 		bReturn = TRUE;
 		if (nMessageArgs != nargs) {
 			if (debug) mrlog("disp_message: FormatMessage mismatch in number of insert arguments. Expected %d, saw %d. Ignoring inserts.", nargs, nMessageArgs);
-		} else if (nMessageArgs > 0) {
-			messageLength = FormatMessage(
+        } else if (nMessageArgs > 0) {
+            if (pMessage != NULL) LocalFree(pMessage);
+            messageLength = FormatMessage(
 				FORMAT_MESSAGE_ALLOCATE_BUFFER |
 				FORMAT_MESSAGE_FROM_HMODULE |
 				FORMAT_MESSAGE_ARGUMENT_ARRAY,
@@ -240,8 +241,8 @@ static BOOL disp_message(char *log, char *source_name, char *entry_name,
 					mrlog("%s", args[argi]);
 				}
 			}
-		}
-	}
+        }
+    }
 
 Exit:
 	msgbuf[0] = '\0';
