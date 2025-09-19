@@ -62,7 +62,7 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
 
 size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
     size_t written = 0;
-    CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
+    const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
     if (!oIDInfo) {
         // Unknown OID;
         out[0] = '\0';
@@ -140,7 +140,7 @@ void clog_certificates(clog_Arena scratch) {
     // HCERTSTORE hStore = CertOpenSystemStoreA(0, storeLocation);
     // CertControlStore(hStore, 0, CERT_STORE_CTRL_AUTO_RESYNC, NULL);
 
-    CERT_CONTEXT *ctx = NULL;
+    const CERT_CONTEXT *ctx = NULL;
     CHAR certificateBuf[CERTIFICATES_ROW_SIZE];
     DWORD numCertificates = 0;
 
