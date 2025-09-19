@@ -134,7 +134,7 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
                 .PID = processID,
                 .User = user,
                 .CPU = ((PDH_FMT_COUNTERVALUE_ITEM *)processorTimes)[i].FmtValue.doubleValue,
-                .Memory = ((PDH_FMT_COUNTERVALUE_ITEM *)workingSets)[i].FmtValue.longValue};
+                .Memory = ((PDH_FMT_COUNTERVALUE_ITEM *)workingSets)[i].FmtValue.largeValue};
         }
         result.Rows = rows;
     }
