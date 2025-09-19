@@ -18,7 +18,7 @@ typedef struct {
     LONG PID;
     CHAR *User;
     DOUBLE CPU;
-    LONG Memory;
+    LONGLONG Memory;
 } processes_TableRow;
 
 typedef struct {
