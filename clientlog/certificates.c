@@ -4,6 +4,7 @@
 #define CERTIFICATES_ROW_SIZE (512)
 
 typedef struct {
+    DWORD PublicKeySize;
     CHAR *Subject;
     CHAR *FriendlyName;
     CHAR *Issuer;
@@ -44,6 +45,7 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
              "\nSubject RDN:        \t%s"
              "\nIssuer RDN:         \t%s"
              "\nIntended purposes:  \t%s"
+             "\nKey Size:           \t%lu"
              "\nSignature Algorithm:\t%s"
              "\nFinger Print:       \t%s"
              "\nSerial Number:      \t%s",
@@ -54,6 +56,7 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
              c->Subject,
              c->Issuer,
              certificates_PrettyEKUPurposes(c->EKUPurposes, eku, sizeof(eku)),
+             c->PublicKeySize,
              c->SignatureAlgorithm,
              c->Fingerprint,
              c->SerialNumber);
@@ -129,7 +132,7 @@ WINBOOL CertCloseStoreWrapper(HCERTSTORE h) {
 }
 
 void clog_certificates(clog_Arena scratch) {
-    LPSTR storeLocation = "MY";
+    const LPSTR storeLocation = "MY";
 
     clog_ArenaAppend(&scratch, "[certificates]");
 
@@ -219,6 +222,7 @@ void clog_certificates(clog_Arena scratch) {
         c.NotBefore = ctx->pCertInfo->NotBefore;
         c.NotAfter = ctx->pCertInfo->NotAfter;
         c.StoreLocation = "Local Machine";
+        c.PublicKeySize = CertGetPublicKeyLength(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, &ctx->pCertInfo->SubjectPublicKeyInfo);
 
         LOG_DEBUG("\tcertificates.c: \tPrinting cert to buffer.");
         clog_ArenaAppend(&scratch, "%s\n", certificates_PrettyCertificate(&c, certificateBuf));

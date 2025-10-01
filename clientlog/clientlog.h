@@ -28,6 +28,9 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch);
 /* applications */
 void clog_applications(clog_Arena scratch);
 
+/* bios */
+void clog_bios(clog_Arena scratch);
+
 /* certificates */
 void clog_certificates(clog_Arena scratch);
 
@@ -48,6 +51,9 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch);
 
 /* ipconfig */
 void clog_ipconfig(clog_Arena scratch);
+
+/* kbs */
+void clog_kbs(clog_Arena scratch);
 
 /* osversion */
 void clog_osversion(clog_Arena scratch);

@@ -2,7 +2,7 @@
 # CFLAGS = -Wall -O -g -DDEBUG
 CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 ODIR = .
-_OBJ = applications.o certificates.o clientversion.o clock.o date.o diskinfo.o eventlog.o ipconfig.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
+_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 exe: x86.exe x64.exe
@@ -25,13 +25,16 @@ clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -c -o $@ $< 
 
 clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -DCLIENTLOGEXE
+	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lOle32 -DCLIENTLOGEXE
 
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 certificates: $(ODIR)/certificates.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -lcrypt32
+
+bios: $(ODIR)/bios.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) -o $@ $^
 
 clientversion: $(ODIR)/clientversion.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
@@ -50,6 +53,9 @@ eventlog: $(ODIR)/eventlog.o $(ODIR)/utils.o $(ODIR)/arena.o
 
 ipconfig: $(ODIR)/ipconfig.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
+
+kbs: $(ODIR)/kbs.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) -o $@ $^ -lOle32
 
 osversion: $(ODIR)/osversion.o
 	$(CC) $(CFLAGS) -o $@ $^

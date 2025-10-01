@@ -1,6 +1,6 @@
 
-/* Designed for Win2k and above */
-#define _WIN32_WINNT 0x0500
+/* Designed for Windows Vista / Windows Server 2008 and above */
+#define _WIN32_WINNT 0x0600
 
 /* All required headers */
 //#include <windows.h>

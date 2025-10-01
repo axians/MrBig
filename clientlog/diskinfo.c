@@ -112,6 +112,23 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
             STORAGE_DEVICE_NUMBER storageInfo;
             DWORD bytesReturned;
             LOG_DEBUG("\t\tdiskinfo.c: Reading device info from handle.");
+
+            BOOL deviceWritable = DeviceIoControl(
+                hPhys,
+                IOCTL_DISK_IS_WRITABLE,
+                NULL,
+                0,
+                NULL,
+                0,
+                &bytesReturned,
+                NULL
+            );
+
+            if (!deviceWritable) {
+                LOG_DEBUG("\t\tdiskinfo.c: Device not writeable. Skipping.");
+                CloseHandle(hPhys);
+                continue;
+            }
             BOOL deviceNumberSuccess = DeviceIoControl(
                 hPhys,
                 IOCTL_STORAGE_GET_DEVICE_NUMBER,

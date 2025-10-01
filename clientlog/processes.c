@@ -247,7 +247,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     clog_ArenaAppend(a, "[processes]");
     if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareName, a);
         processes_AppendTable(endedQuery, endedQuery.NumRows, a);
@@ -255,7 +255,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     clog_ArenaAppend(a, "[topprocessescpu]");
     if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareCPU, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
@@ -263,7 +263,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     clog_ArenaAppend(a, "[topprocessesmemory]");
     if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n", startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareMemory, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
