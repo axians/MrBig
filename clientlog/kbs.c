@@ -1,6 +1,7 @@
 #include "clientlog.h"
 #include <initguid.h>
 #include <wuapi.h>
+#include <wuerror.h>
 
 typedef struct TreeSet {
     struct TreeSet *Left;
@@ -60,8 +61,11 @@ void clog_kbs(clog_Arena scratch) {
     TreeSet *kbs = NULL;
     IUpdateSession *session = NULL;
     IUpdateSearcher *searcher = NULL;
-    IUpdateHistoryEntryCollection *hist = NULL;
+    ISearchResult *searchResult = NULL;
+    IUpdateCollection *updates = NULL;
     clog_ArenaAppend(&scratch, "[kbs]");
+
+
 
     LOG_DEBUG("\tkbs.c: Initializing COM library.");
     HRESULT status = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -71,41 +75,53 @@ void clog_kbs(clog_Arena scratch) {
         return;
     }
 
+#define HANDLE_COM_ALLOCATION(obj)                                                               \
+    if (status != S_OK) {                                                                   \
+        LOG_DEBUG("\tkbs.c: COM library " #obj " failed, error code %lu.", GetLastError()); \
+        goto Cleanup;                                                                       \
+    }                                                                                       \
+    clog_Defer(&scratch, obj, RETURN_LONG, obj->lpVtbl->Release)
+
     LOG_DEBUG("\tkbs.c: Starting COM session.");
     status = CoCreateInstance(&CLSID_UpdateSession, NULL, CLSCTX_INPROC_SERVER, &IID_IUpdateSession, (LPVOID *)&session);
-    if (status != S_OK) {
-        LOG_DEBUG("\tkbs.c: Session startup failed, error code %lu.", GetLastError());
-        goto Cleanup;
-    }
-    clog_Defer(&scratch, session, RETURN_LONG, session->lpVtbl->Release);
+    HANDLE_COM_ALLOCATION(session);
 
     LOG_DEBUG("\tkbs.c: Creating searcher.");
     status = session->lpVtbl->CreateUpdateSearcher(session, &searcher);
-    if (status != S_OK) {
-        LOG_DEBUG("\tkbs.c: Searcher creation failed, error code %lu.", GetLastError());
-        goto Cleanup;
-    }
-    clog_Defer(&scratch, searcher, RETURN_LONG, searcher->lpVtbl->Release);
+    HANDLE_COM_ALLOCATION(searcher);
 
-    LOG_DEBUG("\tkbs.c: Getting history count.");
-    LONG count;
-    status = searcher->lpVtbl->GetTotalHistoryCount(searcher, &count);
-    if (status != S_OK) {
-        LOG_DEBUG("\tkbs.c: Could not get history count, error code %lu.", GetLastError());
+    wchar_t *queryChar = L"( IsInstalled = 1 and IsHidden = 0 )";
+    BSTR query = SysAllocString(queryChar);
+    clog_Defer(&scratch, query, RETURN_VOID, SysFreeString);
+    // Very slow, see earlier commit in history for other version using another method
+    status = searcher->lpVtbl->Search(searcher, query, &searchResult);
+    HANDLE_COM_ALLOCATION(searchResult);
+
+    OperationResultCode searchResultCode = 0;
+    status = searchResult->lpVtbl->get_ResultCode(searchResult, &searchResultCode);
+    if (status != S_OK || (searchResultCode != orcSucceeded && searchResultCode != orcSucceededWithErrors)) {
+        LOG_DEBUG("\tkbs.c: Could not complete search, error code %lu.", GetLastError());
         goto Cleanup;
     }
-    LOG_DEBUG("\tkbs.c: History count = %lu. Querying history.", count);
-    searcher->lpVtbl->QueryHistory(searcher, 0, count, &hist);
+
+    status = searchResult->lpVtbl->get_Updates(searchResult, &updates);
+    HANDLE_COM_ALLOCATION(updates);
+
+    LONG count = 0;
+    status = updates->lpVtbl->get_Count(updates, &count);
     if (status != S_OK) {
-        LOG_DEBUG("\tkbs.c: History query failed, error code %lu.", GetLastError());
+        LOG_DEBUG("\tkbs.c: Could not get count, error code %lu.", GetLastError());
         goto Cleanup;
     }
-    clog_Defer(&scratch, hist, RETURN_LONG, hist->lpVtbl->Release);
+    if (count == 0) {
+        LOG_DEBUG("\tkbs.c: Searcher update count is zero.");
+        goto Cleanup;
+    }
 
     for (int i = 0; i < count; i++) {
         LOG_DEBUG("\tkbs.c: Item %d:", i);
-        IUpdateHistoryEntry *item;
-        hist->lpVtbl->get_Item(hist, i, &item);
+        IUpdate *item;
+        updates->lpVtbl->get_Item(updates, i, &item);
         if (status != S_OK) {
             LOG_DEBUG("\t\tkbs.c: Could not get item %d, error code %lu.", i, GetLastError());
             continue;

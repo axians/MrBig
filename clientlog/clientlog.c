@@ -42,9 +42,8 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     RUN(clog_osversion, arena);
     clog_ArenaAppend(&arena, "\n");
 
-    RUN(clog_kbs, arena);
-    clog_ArenaAppend(&arena, "\n");
-
+    // RUN(clog_kbs, arena);
+    // clog_ArenaAppend(&arena, "\n");
     RUN(clog_winuptime, arena);
     clog_ArenaAppend(&arena, "\n");
 
