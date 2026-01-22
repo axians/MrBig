@@ -1,6 +1,17 @@
 
 PACKAGE=MrBig
-VERSION=0.26.3
+VERSION=0.26.3.0
+
+COMPANY=Axians AB
+COPYRIGHT=Correct Copyright later
+DESCRIPTION=Correct Description later
+PRODUCT=MrBig 
+INTERNAL=MrBig
+COMMENTS=MrBig System Information and Monitoring Tool
+
+VER_RC=winver.rc
+VER_RES=winver.res
+
 #CFLAGS=-Wall -O -g -DDEBUG
 CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
@@ -28,9 +39,51 @@ EXEFILES=X86/mrbig.exe X64/mrbig64.exe
 ARCHIVE=ulric@tiffany.365-24.se:/usr/local/apache/vhosts/extranet.365-24.se/MrBig/Archive
 BETAVERSION=`date +%y%m%d%H%M`
 
+BUILD_DATE=$(shell date +%y%m%d%H%M)
+GIT_HASH=$(shell git rev-parse --short HEAD)
+GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
+
+FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,%s", $$1,$$2,$$3,$$4}')
+
+# -----------------------------
+# Version string logic
+# -----------------------------
+ifeq ($(DEV),1)
+	# Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH-dirty
+	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
+else
+	# Release: 1.2.3.4+HASH
+	FILEVER_STR := $(VERSION)+$(GIT_HASH)
+endif
+
+
+ifneq ($(strip $(ARCH)),)
+ORIG_EXE := mrbig$(ARCH).exe
+else
+ORIG_EXE := mrbig.exe
+endif
+
 all:
 	$(MAKE) -C X86 mrbig.exe
 	$(MAKE) -C X64 mrbig64.exe
+
+$(VER_RC): version.rc.template
+	sed -e 's/@COMPANY@/$(COMPANY)/g' \
+	    -e 's/@PRODUCT@/$(PACKAGE)/g' \
+	    -e 's/@PACKAGE@/$(PACKAGE)/g' \
+		-e 's/@FILEVER@/$(FILEVER_STR)/g' \
+		-e 's/@FILEVER_COMMA@/$(FILEVER_COMMA)/g' \
+		-e 's/@COPYRIGHT@/$(COPYRIGHT)/g' \
+		-e 's/@DESCRIPTION@/$(DESCRIPTION)/g' \
+		-e 's/@ORIGINALFILENAME@/$(ORIG_EXE)/g' \
+		-e 's/@INTERNAL@/$(INTERNAL)/g' \
+		-e 's/@COMMENTS@/$(COMMENTS)/g' \
+	    $< > $@
+# Build the version resource. WINDRES must be set by the arch specific Makefile
+# (X86/Makefile or X64/Makefile) so that the correct prefixed windres tool is used.
+$(VER_RES): $(VER_RC)
+	$(WINDRES) -O coff $(VER_RC) -o $(VER_RES)
+
 
 mrwmi:
 	$(MAKE) -C X86 mrwmi.exe
@@ -39,11 +92,13 @@ mrwmi:
 mrwmi.exe: $(OBJS) wmi.o disphelper.o
 	$(CC) -o mrwmi.exe $(OBJS) wmi.o disphelper.o -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -lcrypt32 -lwevtapi -lpdh -lwtsapi32
 
-mrbig.exe: $(OBJS) clientlog.o
-	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+mrbig.exe: $(OBJS) clientlog.o $(VER_RES)
+	@echo "Building mrbig.exe"
+	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
 
-mrbig64.exe: $(OBJS) clientlog.o
-	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+mrbig64.exe: $(OBJS) clientlog.o $(VER_RES)
+	@echo "Building mrbig64.exe"
+	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
 
 mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
@@ -102,12 +157,14 @@ clean:
 	make -C clientlog clean
 
 .clean:
-	rm -f *.o *.exe *~ *.stackdump
+	rm -f *.o *.exe *~ *.stackdump *.res *.rc
 
 #zip: $(ZIPFILES)
 #	strip mrbig.exe
 #	zip $(PACKAGE)-$(VERSION).zip $(ZIPFILES)
 #
+gitversion:
+	$(MAKE) GITCOMMIT=1 all
 
 zip: $(ZIPFILES) all
 	zip $(PACKAGE)-$(VERSION).zip $(ZIPFILES) $(EXEFILES)
@@ -130,4 +187,7 @@ beta:
 	rm -f X86/mrbig.exe
 	$(MAKE) all
 	scp X86/mrbig.exe $(ARCHIVE)/Beta/mrbig-$(BETAVERSION)-beta.exe
+
+dev:
+	$(MAKE) DEV=1 all
 
