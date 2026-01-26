@@ -5,8 +5,8 @@ VERSION=0.26.3.0
 COMPANY=Axians AB
 COPYRIGHT=Axians AB - GNU GPLv3
 DESCRIPTION=MrBig client for Xymon
-PRODUCT=MrBig 
-INTERNAL=MrBig
+PRODUCT=MrBig client for Xymon
+INTERNAL=MrBig client for Xymon
 COMMENTS=MrBig client for Xymon
 
 VER_RC=winver.rc
@@ -49,11 +49,11 @@ FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,%s", $$1,$$
 # Version string logic
 # -----------------------------
 ifeq ($(DEV),1)
-	# Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH-dirty
+# Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
 	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
 else
-	# Release: 1.2.3.4+HASH
-	FILEVER_STR := $(VERSION)+$(GIT_HASH)
+# Release: 1.2.3.4
+	FILEVER_STR := $(VERSION)
 endif
 
 
@@ -69,7 +69,7 @@ all:
 
 $(VER_RC): version.rc.template
 	sed -e 's/@COMPANY@/$(COMPANY)/g' \
-	    -e 's/@PRODUCT@/$(PACKAGE)/g' \
+	    -e 's/@PRODUCT@/$(PRODUCT)/g' \
 	    -e 's/@PACKAGE@/$(PACKAGE)/g' \
 		-e 's/@FILEVER@/$(FILEVER_STR)/g' \
 		-e 's/@FILEVER_COMMA@/$(FILEVER_COMMA)/g' \
@@ -163,9 +163,6 @@ clean:
 #	strip mrbig.exe
 #	zip $(PACKAGE)-$(VERSION).zip $(ZIPFILES)
 #
-gitversion:
-	$(MAKE) GITCOMMIT=1 all
-
 zip: $(ZIPFILES) all
 	zip $(PACKAGE)-$(VERSION).zip $(ZIPFILES) $(EXEFILES)
 
