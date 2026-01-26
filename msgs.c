@@ -178,8 +178,8 @@ void msgs(void)
 
 	if (debug > 1) mrlog("msgs(%p, %d)", b, n);
 
-	if (get_option("no_msgs", 0)) {
-		mrsend(mrmachine, "msgs", "clear", "option no_msgs\n");
+	if (!get_option("enable_msgs", 0)) {
+		mrsend(mrmachine, "msgs", "clear", "option enable_msgs not set\n");
 		return;
 	}
 
