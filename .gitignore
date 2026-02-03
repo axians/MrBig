@@ -11,3 +11,9 @@
 *.tar.bz2
 
 .vscode
+
+compile_commands.json
+
+# logfile
+mrlog.log
+.cache/
