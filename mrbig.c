@@ -65,6 +65,11 @@ void mrlog(char *fmt, ...)
 	if (standalone) fp = stderr;
 	else fp = logfp;
 	if (!fp) return;
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+	char ts[20];
+	strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm);
+	fprintf(fp, "%s ", ts);
 	va_start(ap, fmt);
 	vfprintf(fp, fmt, ap);
 	va_end(ap);
