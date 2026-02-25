@@ -2,6 +2,7 @@
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
         Add ubr (Update Build Revision) for clientlog as fourth value.
         Extend payload buffer for certificate in clientlog from 512 to 1024 to accommodate larger payload.
+        Release MrBig-0.26.4
 
 260203	Changed Msgs to default to disabled with opt-in
         seemed to cause crashes when loading in registry.
