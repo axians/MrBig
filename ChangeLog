@@ -1,3 +1,5 @@
+260225  Add ubr (Update Build Revision) for clientlog as fourth value. 
+
 251517  Added Clientlog module, which writes a big log of rows,
         containg information about the Windows machine. Most info
 		modules are recreations of Linux command line utilities.
