@@ -2,11 +2,15 @@
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
         Add ubr (Update Build Revision) for clientlog as fourth value. 
 
+260203	Changed Msgs to default to disabled with opt-in
+				seemed to cause crashes when loading in registry.
+				enable with option enable_msgs
+
 251517  Added Clientlog module, which writes a big log of rows,
         containg information about the Windows machine. Most info
-	    modules are recreations of Linux command line utilities.
+        modules are recreations of Linux command line utilities.
         Rewrote readlog.c using Wevt32 API.
-		Released MrBig-0.26.3
+        Released MrBig-0.26.3
 
 170615  Separated cpu and memory monitoring. Now cpu will not alert together
         with memory.
