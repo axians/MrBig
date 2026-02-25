@@ -1,0 +1,82 @@
+name: PR Build and Artifact
+
+permissions:
+  contents: read
+  pull-requests: write
+
+on:
+  pull_request:
+    # Triggers on all PR events (opened, synchronize, reopened, etc.)
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Cygwin
+      uses: cygwin/cygwin-install-action@master
+      with:
+        packages: make zip gcc-core gcc-g++ binutils
+        
+    - name: Setup MinGW-w64
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-make
+          mingw-w64-i686-gcc
+          mingw-w64-i686-make
+          make
+          
+    - name: Debug workspace contents (Windows)
+      shell: cmd
+      run: |
+        echo Current working directory:
+        cd
+        echo Workspace directory: ${{ github.workspace }}
+        echo Contents of workspace:
+        dir "${{ github.workspace }}"
+        echo Looking for Makefile:
+        dir "${{ github.workspace }}\Makefile"
+        
+    - name: Build MrBig
+      shell: msys2 {0}
+      run: |
+        export PATH="/mingw64/bin:/mingw32/bin:/usr/bin:$PATH"
+        echo "Checking available compilers:"
+        which gcc || echo "gcc not found"
+        which x86_64-w64-mingw32-gcc || echo "x86_64-w64-mingw32-gcc not found"
+        which i686-w64-mingw32-gcc || echo "i686-w64-mingw32-gcc not found"
+        echo "Running make..."
+        make
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mrbig-binaries
+        path: |
+          X64/mrbig64.exe
+          X86/mrbig.exe
+        if-no-files-found: warn
+
+    - name: Comment artifact link on PR
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const pr = context.payload.pull_request;
+          if (pr) {
+            const runId = process.env.GITHUB_RUN_ID;
+            const artifactUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+            github.rest.issues.createComment({
+              issue_number: pr.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🔗 Download the build artifacts from this PR run: [Artifacts & Logs](${artifactUrl})`
+            });
+          }
