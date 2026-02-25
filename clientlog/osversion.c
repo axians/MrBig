@@ -65,8 +65,12 @@ void clog_osversion(clog_Arena scratch) {
     CHAR productName[64];
     DWORD typeProduct;
     DWORD lenProduct = 64;
+    DWORD ubr = 0;
     if (productStatus == ERROR_SUCCESS) {
         productStatus = RegGetValue(hKey, NULL, "productName", RRF_RT_REG_SZ, &typeProduct, productName, &lenProduct);
+        DWORD typeUbr;
+        DWORD lenUbr = sizeof(DWORD);
+        RegGetValue(hKey, NULL, "UBR", RRF_RT_REG_DWORD, &typeUbr, &ubr, &lenUbr);
     }
     RegCloseKey(hKey);
 
@@ -137,7 +141,7 @@ void clog_osversion(clog_Arena scratch) {
     }
 
     CHAR osVersion[64];
-    snprintf(osVersion, 64, "version %lu.%lu.%lu (%s)", osVersionInfo.dwMajorVersion, osVersionInfo.dwMinorVersion, osVersionInfo.dwBuildNumber, win.version);
+    snprintf(osVersion, 64, "version %lu.%lu.%lu.%lu (%s)", osVersionInfo.dwMajorVersion, osVersionInfo.dwMinorVersion, osVersionInfo.dwBuildNumber, ubr, win.version);
 
     clog_ArenaAppend(&scratch, "\n%s, %s", osName, osVersion);
 
