@@ -1,9 +1,10 @@
 
 PACKAGE=MrBig
-VERSION=0.26.3.0
+
+VERSION=0.26.4
 
 COMPANY=Axians AB
-COPYRIGHT=Axians AB - GNU GPLv3
+COPYRIGHT=Axians AB
 DESCRIPTION=MrBig client for Xymon
 PRODUCT=MrBig client for Xymon
 INTERNAL=MrBig client for Xymon
