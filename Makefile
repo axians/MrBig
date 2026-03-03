@@ -44,7 +44,7 @@ BUILD_DATE=$(shell date +%y%m%d%H%M)
 GIT_HASH=$(shell git rev-parse --short HEAD)
 GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
 
-FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,%s", $$1,$$2,$$3,$$4}')
+FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
 
 # -----------------------------
 # Version string logic
