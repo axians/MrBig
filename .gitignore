@@ -1,6 +1,10 @@
 # Object files
 *.o
 
+# Resource files (compiled)
+*.rc
+*.res
+
 # Executables
 *.exe
 
