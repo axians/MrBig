@@ -21,7 +21,7 @@ BEGIN
             VALUE "OriginalFilename", "@ORIGINALFILENAME@"
             VALUE "ProductName",      "@PRODUCT@"
             VALUE "ProductVersion",   "@FILEVER@"
-            VALUE "Comments",          "@COMMENTS@"
+            VALUE "Comments",          "git:@GIT_HASH@@GIT_DIRTY@"
         END
     END
     BLOCK "VarFileInfo"

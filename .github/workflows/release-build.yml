@@ -1,12 +1,12 @@
-name: PR Build and Artifact
-
-permissions:
-  contents: read
-  pull-requests: read
+name: release-build
 
 on:
-  pull_request:
-    # Triggers on all PR events (opened, synchronize, reopened, etc.)
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -25,6 +25,7 @@ jobs:
       run: make all
 
     - name: Upload build artifacts
+      if: github.event_name == 'release'
       uses: actions/upload-artifact@v4
       with:
         name: mrbig-binaries
@@ -33,3 +34,10 @@ jobs:
           X86/mrbig.exe
         if-no-files-found: warn
 
+    - name: Upload Release Assets
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          X64/mrbig64.exe
+          X86/mrbig.exe

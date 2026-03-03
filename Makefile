@@ -79,6 +79,8 @@ $(VER_RC): version.rc.template
 		-e 's/@ORIGINALFILENAME@/$(ORIG_EXE)/g' \
 		-e 's/@INTERNAL@/$(INTERNAL)/g' \
 		-e 's/@COMMENTS@/$(COMMENTS)/g' \
+		-e 's/@GIT_HASH@/$(GIT_HASH)/g' \
+		-e 's/@GIT_DIRTY@/$(GIT_DIRTY)/g' \
 	    $< > $@
 # Build the version resource. WINDRES must be set by the arch specific Makefile
 # (X86/Makefile or X64/Makefile) so that the correct prefixed windres tool is used.
