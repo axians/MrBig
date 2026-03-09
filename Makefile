@@ -37,9 +37,6 @@ EXTRA_DIST=minicfg.c minibbd.c
 DISTFILES=$(CFG) $(DISTCFG) $(SRCS) $(HDRS) $(DOCS) Makefile $(EXTRA_DIST)
 ZIPFILES=$(DISTCFG) $(DOCS)
 EXEFILES=X86/mrbig.exe X64/mrbig64.exe
-ARCHIVE=ulric@tiffany.365-24.se:/usr/local/apache/vhosts/extranet.365-24.se/MrBig/Archive
-BETAVERSION=`date +%y%m%d%H%M`
-
 BUILD_DATE=$(shell date +%y%m%d%H%M)
 GIT_HASH=$(shell git rev-parse --short HEAD)
 GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
@@ -178,15 +175,6 @@ dist: $(DISTFILES)
 	tar cf $(DISTDIR).tar $(DISTDIR)
 	gzip -f $(DISTDIR).tar
 	rm -rf $(DISTDIR)
-
-upload: zip dist
-	scp $(EXEFILES) $(PACKAGE)-$(VERSION).zip $(ARCHIVE)/Binaries
-	scp $(DISTDIR).tar.gz $(ARCHIVE)/Sources
-
-beta:
-	rm -f X86/mrbig.exe
-	$(MAKE) all
-	scp X86/mrbig.exe $(ARCHIVE)/Beta/mrbig-$(BETAVERSION)-beta.exe
 
 dev:
 	$(MAKE) DEV=1 all
