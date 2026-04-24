@@ -2,7 +2,7 @@
 # CFLAGS = -Wall -O -g -DDEBUG
 CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 ODIR = .
-_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
+_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o tcpconnections.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 exe: x86.exe x64.exe
@@ -76,7 +76,10 @@ winmemory: $(ODIR)/winmemory.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -lpdh
 
 winports: $(ODIR)/winports.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^  -lWs2_32  -lIphlpapi
+	$(CC) $(CFLAGS) -o $@ $^  -lws2_32  -liphlpapi
+
+tcpconnections: $(ODIR)/tcpconnections.o $(ODIR)/utils.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) -o $@ $^ -lws2_32 -liphlpapi
 	
 winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^

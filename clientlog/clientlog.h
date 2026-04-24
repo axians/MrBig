@@ -81,5 +81,8 @@ void clog_winroute(clog_Arena scratch);
 /* winports + winportsused */
 void clog_winports(clog_Arena scratch);
 
+/* tcpconnections */
+void clog_tcp_connections(clog_Arena scratch);
+
 /* winuptime */
 void clog_winuptime(clog_Arena scratch);
