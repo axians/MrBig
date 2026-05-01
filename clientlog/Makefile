@@ -79,6 +79,7 @@ winports: $(ODIR)/winports.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^  -lws2_32  -liphlpapi
 
 tcpconnections: $(ODIR)/tcpconnections.o $(ODIR)/utils.o $(ODIR)/arena.o
+	echo "$(CC)"
 	$(CC) $(CFLAGS) -o $@ $^ -lws2_32 -liphlpapi
 	
 winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o

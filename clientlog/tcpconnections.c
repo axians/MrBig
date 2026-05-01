@@ -1,10 +1,14 @@
+#include <winsock2.h>
 #include "clientlog.h"
 #include <iphlpapi.h>
+#include <tlhelp32.h>
 
 /* TCP analyzer using Windows IP Helper API (no shelling out to netstat). */
 
 #define TCPCONNECTIONS_DEFAULT_EPHEMERAL_START 49152
 #define TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT 16384
+/* Toggle to disable dns lookups if it takes too long */
+#define TCPCONNECTIONS_ENABLE_REVERSE_DNS 1
 
 typedef enum {
     tcpconnections_DirectionIncoming = 1,
@@ -15,9 +19,11 @@ typedef enum {
 typedef struct {
     CHAR LocalAddress[64];
     CHAR RemoteAddress[64];
-    CHAR State[32];
+    CHAR RemoteFqdn[256];
     DWORD LocalPort;
     DWORD RemotePort;
+    DWORD Pid;
+    CHAR ProcessName[260];
     tcpconnections_Direction Direction;
 } tcpconnections_Established;
 
@@ -25,6 +31,11 @@ typedef struct {
     DWORD Port;
     DWORD Count;
 } tcpconnections_PortSummary;
+
+typedef struct {
+    CHAR Ip[64];
+    CHAR Fqdn[256];
+} tcpconnections_RemoteHostCache;
 
 static BOOL tcpconnections_ContainsDword(const DWORD *arr, DWORD len, DWORD value) {
     for (DWORD i = 0; i < len; i++) {
@@ -39,6 +50,40 @@ static void tcpconnections_AddUniqueDword(DWORD *arr, DWORD *len, DWORD maxLen, 
         arr[*len] = value;
         (*len)++;
     }
+}
+
+static BOOL tcpconnections_GetProcessName(DWORD pid, CHAR *out, size_t outSize) {
+    if (outSize == 0) return FALSE;
+
+    snprintf(out, outSize, "Unknown");
+
+    if (pid == 0) {
+        snprintf(out, outSize, "System");
+        return TRUE;
+    }
+
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+    PROCESSENTRY32 pe32;
+    ZeroMemory(&pe32, sizeof(pe32));
+    pe32.dwSize = sizeof(pe32);
+
+    BOOL success = FALSE;
+    if (Process32First(hSnapshot, &pe32)) {
+        do {
+            if (pe32.th32ProcessID == pid) {
+                snprintf(out, outSize, "%s", pe32.szExeFile);
+                success = TRUE;
+                break;
+            }
+        } while (Process32Next(hSnapshot, &pe32) && !success);
+    }
+
+    CloseHandle(hSnapshot);
+    return success;
 }
 
 static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
@@ -83,7 +128,7 @@ static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
 static BOOL tcpconnections_IsCommonServerPort(DWORD port) {
     static DWORD commonServerPorts[] = {
         20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 465, 587,
-        993, 995, 1433, 3306, 3389, 5432, 5985, 5986, 8080, 8443,
+        993, 995, 1433, 1984, 3306, 3389, 5432, 5985, 5986, 8080, 8443, 9000, 12202
     };
     return tcpconnections_ContainsDword(commonServerPorts, lengthof(commonServerPorts), port);
 }
@@ -119,6 +164,7 @@ static const CHAR *tcpconnections_ServiceName(DWORD port) {
     case 993: return "IMAPS";
     case 995: return "POP3S";
     case 1433: return "MS-SQL";
+    case 1984: return "MrBig";
     case 3306: return "MySQL";
     case 3389: return "RDP";
     case 5432: return "PostgreSQL";
@@ -126,6 +172,7 @@ static const CHAR *tcpconnections_ServiceName(DWORD port) {
     case 5986: return "WinRM-HTTPS";
     case 8080: return "HTTP-Alt";
     case 8443: return "HTTPS-Alt";
+    case 9000: return "Axians-Proxy-switch-name";
     case 12202: return "Graylog";
     default: return "Unknown";
     }
@@ -157,7 +204,25 @@ static MIB_TCPTABLE_OWNER_PID *tcpconnections_GetTcp4Table(void) {
     return table;
 }
 
+static void tcpconnections_ResolveRemoteHostFqdn(const CHAR *remoteIp, CHAR *out, size_t outSize) {
+    if (outSize == 0) return;
+
+#if TCPCONNECTIONS_ENABLE_REVERSE_DNS
+    unsigned long addr = inet_addr(remoteIp);
+    if (addr != INADDR_NONE) {
+        struct hostent *host = gethostbyaddr((const char *)&addr, sizeof(addr), AF_INET);
+        if (host != NULL && host->h_name != NULL && host->h_name[0] != '\0') {
+            snprintf(out, outSize, "%s", host->h_name);
+            return;
+        }
+    }
+#endif
+
+    snprintf(out, outSize, "%s", remoteIp);
+}
+
 void clog_tcp_connections(clog_Arena scratch) {
+    // Capture run timestamp and constants used by the direction heuristic.
     SYSTEMTIME t;
     GetLocalTime(&t);
     CHAR nowBuf[32];
@@ -167,12 +232,14 @@ void clog_tcp_connections(clog_Arena scratch) {
     DWORD ephemeralCount = TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT;
     DWORD ephemeralEnd = ephemeralStart + ephemeralCount - 1;
 
+    // Read the current TCP IPv4 table once and fail fast if unavailable.
     MIB_TCPTABLE_OWNER_PID *tcp4 = tcpconnections_GetTcp4Table();
     if (tcp4 == NULL) {
         clog_ArenaAppend(&scratch, "[tcp_connections]\n(Unable to read TCP table)");
         return;
     }
 
+    // Build a set of listening ports to help classify direction later.
     DWORD listeningPorts[2048] = {0};
     DWORD listeningPortCount = 0;
     for (DWORD i = 0; i < tcp4->dwNumEntries; i++) {
@@ -184,6 +251,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     CHAR localIPv4[128][16] = {0};
     DWORD localIPv4Count = tcpconnections_GetLocalIPv4List(localIPv4, lengthof(localIPv4));
 
+    // Collect established non-local connections for row output + summaries.
     DWORD estabCap = 256;
     DWORD estabCount = 0;
     tcpconnections_Established *established = malloc(sizeof(tcpconnections_Established) * estabCap);
@@ -192,6 +260,10 @@ void clog_tcp_connections(clog_Arena scratch) {
         clog_ArenaAppend(&scratch, "[tcp_connections]\n(Unable to allocate memory)");
         return;
     }
+
+    // Small cache to avoid repeated reverse DNS lookups for the same remote IP.
+    tcpconnections_RemoteHostCache remoteHostCache[512] = {0};
+    DWORD remoteHostCacheCount = 0;
 
     for (DWORD i = 0; i < tcp4->dwNumEntries; i++) {
         MIB_TCPROW_OWNER_PID *r = &tcp4->table[i];
@@ -231,21 +303,40 @@ void clog_tcp_connections(clog_Arena scratch) {
         snprintf(e.RemoteAddress, sizeof(e.RemoteAddress), "%s", remoteBuf);
         e.LocalPort = ntohs((u_short)r->dwLocalPort);
         e.RemotePort = ntohs((u_short)r->dwRemotePort);
-        snprintf(e.State, sizeof(e.State), "%s", "ESTABLISHED");
+        e.Pid = r->dwOwningPid;
+        tcpconnections_GetProcessName(r->dwOwningPid, e.ProcessName, sizeof(e.ProcessName));
 
         if (tcpconnections_ContainsDword(listeningPorts, listeningPortCount, e.LocalPort)) {
             e.Direction = tcpconnections_DirectionIncoming;
         } else if (tcpconnections_IsCommonServerPort(e.RemotePort)
-                   || e.RemotePort < 1024
+                   || e.RemotePort < 1024*2
                    || (e.LocalPort >= ephemeralStart && e.LocalPort <= ephemeralEnd)) {
             e.Direction = tcpconnections_DirectionOutgoing;
         } else {
             e.Direction = tcpconnections_DirectionUnknown;
         }
 
+        BOOL cacheHit = FALSE;
+        for (DWORD j = 0; j < remoteHostCacheCount; j++) {
+            if (strcmp(remoteHostCache[j].Ip, e.RemoteAddress) == 0) {
+                snprintf(e.RemoteFqdn, sizeof(e.RemoteFqdn), "%s", remoteHostCache[j].Fqdn);
+                cacheHit = TRUE;
+                break;
+            }
+        }
+        if (!cacheHit) {
+            tcpconnections_ResolveRemoteHostFqdn(e.RemoteAddress, e.RemoteFqdn, sizeof(e.RemoteFqdn));
+            if (remoteHostCacheCount < lengthof(remoteHostCache)) {
+                snprintf(remoteHostCache[remoteHostCacheCount].Ip, sizeof(remoteHostCache[remoteHostCacheCount].Ip), "%s", e.RemoteAddress);
+                snprintf(remoteHostCache[remoteHostCacheCount].Fqdn, sizeof(remoteHostCache[remoteHostCacheCount].Fqdn), "%s", e.RemoteFqdn);
+                remoteHostCacheCount++;
+            }
+        }
+
         established[estabCount++] = e;
     }
 
+    // Compute directional totals for the report header.
     DWORD incomingCount = 0, outgoingCount = 0, unknownCount = 0;
     for (DWORD i = 0; i < estabCount; i++) {
         if (established[i].Direction == tcpconnections_DirectionIncoming) incomingCount++;
@@ -253,6 +344,7 @@ void clog_tcp_connections(clog_Arena scratch) {
         else unknownCount++;
     }
 
+    // Build and sort remote-port usage summary.
     tcpconnections_PortSummary portSummary[1024] = {0};
     DWORD portSummaryCount = 0;
     for (DWORD i = 0; i < estabCount; i++) {
@@ -286,8 +378,9 @@ void clog_tcp_connections(clog_Arena scratch) {
         snprintf(fqdn, sizeof(fqdn), "%s", hostName);
     }
 
+    // Emit summary section and detailed per-connection rows.
     clog_ArenaAppend(&scratch, "[tcp_connections]");
-    clog_ArenaAppend(&scratch, "\nTCP Analyzer report (source: Windows IP Helper API)");
+    clog_ArenaAppend(&scratch, "\nTCP Analyzer report (source: Windows API)");
     clog_ArenaAppend(&scratch, "\nRunDateTime: %s", nowBuf);
     clog_ArenaAppend(&scratch, "\nEphemeral Port Range: %lu-%lu (%lu ports)", ephemeralStart, ephemeralEnd, ephemeralCount);
     clog_ArenaAppend(&scratch, "\nTotal Connections: %lu", estabCount);
@@ -296,40 +389,46 @@ void clog_tcp_connections(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "\nUnknown Direction: %lu", unknownCount);
 
     clog_ArenaAppend(&scratch, "\n\n[tcp_connections_rows]");
-    clog_ArenaAppend(&scratch, "\n%-19s  %-15s  %-28s  %-10s  %-17s  %-12s  %-17s  %-16s  %-13s",
-                     "run_datetime",
+    clog_ArenaAppend(&scratch, "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-12s  %-40s  %-17s  %-16s",
                      "host_name",
-                     "local_fqdn",
                      "direction",
+                     "pid",
+                     "process_name",
+                     "source_fqdn",
                      "source_ip",
                      "source_port",
-                     "destination_ip",
-                     "destination_port",
-                     "state");
+                     "target_fqdn",
+                     "target_ip",
+                     "target_port");
     for (DWORD i = 0; i < estabCount; i++) {
         const tcpconnections_Established *e = &established[i];
+        const CHAR *sourceFqdn = fqdn;
         const CHAR *sourceIp = e->LocalAddress;
         DWORD sourcePort = e->LocalPort;
-        const CHAR *destinationIp = e->RemoteAddress;
-        DWORD destinationPort = e->RemotePort;
+        const CHAR *targetFqdn = e->RemoteFqdn;
+        const CHAR *targetIp = e->RemoteAddress;
+        DWORD targetPort = e->RemotePort;
 
         if (e->Direction == tcpconnections_DirectionIncoming) {
+            sourceFqdn = e->RemoteFqdn;
             sourceIp = e->RemoteAddress;
             sourcePort = e->RemotePort;
-            destinationIp = e->LocalAddress;
-            destinationPort = e->LocalPort;
+            targetFqdn = fqdn;
+            targetIp = e->LocalAddress;
+            targetPort = e->LocalPort;
         }
 
-        clog_ArenaAppend(&scratch, "\n%-19.19s  %-15.15s  %-28.28s  %-10.10s  %-17.17s  %-12lu  %-17.17s  %-16lu  %-13.13s",
-                         nowBuf,
+        clog_ArenaAppend(&scratch, "\n%-15.15s  %-10.10s  %-8lu  %-31.31s  %-40.120s  %-17.17s  %-12lu  %-40.120s  %-17.17s  %-16lu",
                          hostName,
-                         fqdn,
                          tcpconnections_DirectionLabel(e->Direction),
+                         e->Pid,
+                         e->ProcessName,
+                         sourceFqdn,
                          sourceIp,
                          sourcePort,
-                         destinationIp,
-                         destinationPort,
-                         e->State);
+                         targetFqdn,
+                         targetIp,
+                         targetPort);
     }
 
     DWORD topPorts = min(portSummaryCount, 10u);
