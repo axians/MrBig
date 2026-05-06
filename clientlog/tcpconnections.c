@@ -2,13 +2,15 @@
 #include "clientlog.h"
 #include <iphlpapi.h>
 #include <tlhelp32.h>
+#include <stdio.h>
 
 /* TCP analyzer */
 
 #define TCP_HEADER_NAME "tcp_connections"
 
+// Default ephemeral port range if netsh retrieval fails (Windows default is 49152-65535)
 #define TCPCONNECTIONS_DEFAULT_EPHEMERAL_START 49152
-#define TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT 16384
+#define TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT 16384 
 /* Toggle to disable dns lookups if it takes too long */
 #define TCPCONNECTIONS_ENABLE_REVERSE_DNS 1
 
@@ -38,6 +40,11 @@ typedef struct {
     CHAR Ip[64];
     CHAR Fqdn[256];
 } tcpconnections_RemoteHostCache;
+
+typedef struct {
+    DWORD StartPort;
+    DWORD NumberOfPorts;
+} tcpconnections_EphemeralPortRange;
 
 static BOOL tcpconnections_ContainsDword(const DWORD *arr, DWORD len, DWORD value) {
     for (DWORD i = 0; i < len; i++) {
@@ -149,6 +156,7 @@ static const CHAR *tcpconnections_DirectionLabel(tcpconnections_Direction direct
 
 static const CHAR *tcpconnections_ServiceName(DWORD port) {
     switch (port) {
+    case 0: return "Dynamic";
     case 21: return "FTP";
     case 22: return "SSH";
     case 23: return "Telnet";
@@ -218,7 +226,110 @@ static MIB_TCPTABLE_OWNER_PID *tcpconnections_GetTcp4Table(void) {
     }
     return table;
 }
+// --------------- Dynamic port range retrieval using netsh -----------------
+static BOOL tcpconnections_ParseNetshDynamicPortRange(const CHAR *text, tcpconnections_EphemeralPortRange *range) {
+    if (text == NULL || range == NULL) return FALSE;
 
+    unsigned long found[2] = {0};
+    DWORD foundCount = 0;
+
+    const CHAR *cursor = text;
+    while (*cursor != '\0' && foundCount < lengthof(found)) {
+        if (*cursor >= '0' && *cursor <= '9') {
+            char *endPtr = NULL;
+            unsigned long value = strtoul(cursor, &endPtr, 10);
+            if (endPtr != cursor) {
+                found[foundCount++] = value;
+                cursor = endPtr;
+                continue;
+            }
+        }
+        cursor++;
+    }
+
+    if (foundCount < 2 || found[0] == 0 || found[1] == 0) return FALSE;
+
+    range->StartPort = (DWORD)found[0];
+    range->NumberOfPorts = (DWORD)found[1];
+    return TRUE;
+}
+
+static BOOL tcpconnections_GetNetshDynamicPortRange(tcpconnections_EphemeralPortRange *range) {
+    if (range == NULL) return FALSE;
+
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE readPipe = NULL;
+    HANDLE writePipe = NULL;
+    if (!CreatePipe(&readPipe, &writePipe, &sa, 0)) {
+        return FALSE;
+    }
+
+    if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(readPipe);
+        CloseHandle(writePipe);
+        return FALSE;
+    }
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.hStdOutput = writePipe;
+    si.hStdError = writePipe;
+    si.wShowWindow = SW_HIDE;
+
+    CHAR commandLine[] = "netsh int ipv4 show dynamicport tcp";
+    BOOL created = CreateProcessA(NULL, commandLine, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    CloseHandle(writePipe);
+    if (!created) {
+        CloseHandle(readPipe);
+        return FALSE;
+    }
+
+    CHAR output[4096];
+    DWORD totalRead = 0;
+    DWORD bytesRead = 0;
+    while (totalRead < sizeof(output) - 1) {
+        if (!ReadFile(readPipe, output + totalRead, (DWORD)(sizeof(output) - 1 - totalRead), &bytesRead, NULL) || bytesRead == 0) {
+            break;
+        }
+        totalRead += bytesRead;
+    }
+    output[totalRead] = '\0';
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    CloseHandle(readPipe);
+
+    return tcpconnections_ParseNetshDynamicPortRange(output, range);
+}
+
+static void tcpconnections_GetEphemeralPortRange(DWORD *startPort, DWORD *portCount) {
+    if (startPort == NULL || portCount == NULL) return;
+
+    tcpconnections_EphemeralPortRange range;
+    range.StartPort = TCPCONNECTIONS_DEFAULT_EPHEMERAL_START;
+    range.NumberOfPorts = TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT;
+
+    if (tcpconnections_GetNetshDynamicPortRange(&range)) {
+        *startPort = range.StartPort;
+        *portCount = range.NumberOfPorts;
+        return;
+    }
+
+    *startPort = TCPCONNECTIONS_DEFAULT_EPHEMERAL_START;
+    *portCount = TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT;
+}
+
+
+// Resolve the remote host's FQDN using reverse DNS lookup, with a fallback to the IP if it fails or is disabled.
 static void tcpconnections_ResolveRemoteHostFqdn(const CHAR *remoteIp, CHAR *out, size_t outSize) {
     if (outSize == 0) return;
 
@@ -243,14 +354,15 @@ void clog_tcp_connections(clog_Arena scratch) {
     CHAR nowBuf[32];
     clog_utils_PrettySystemtime(&t, clog_utils_TIMESTAMP_DATETIME, nowBuf, sizeof(nowBuf));
 
-    DWORD ephemeralStart = TCPCONNECTIONS_DEFAULT_EPHEMERAL_START;
-    DWORD ephemeralCount = TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT;
+    DWORD ephemeralStart = 0;
+    DWORD ephemeralCount = 0;
+    tcpconnections_GetEphemeralPortRange(&ephemeralStart, &ephemeralCount);
     DWORD ephemeralEnd = ephemeralStart + ephemeralCount - 1;
 
     // Read the current TCP IPv4 table once and fail fast if unavailable.
     MIB_TCPTABLE_OWNER_PID *tcp4 = tcpconnections_GetTcp4Table();
     if (tcp4 == NULL) {
-        clog_ArenaAppend(&scratch, "[%s]\n(Unable to read TCP table)", TCP_HEADER_NAME);
+        clog_ArenaAppend(&scratch, "[tcp_connections]\n(Unable to read TCP table)");
         return;
     }
 
@@ -272,7 +384,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     tcpconnections_Established *established = malloc(sizeof(tcpconnections_Established) * estabCap);
     if (established == NULL) {
         free(tcp4);
-        clog_ArenaAppend(&scratch, "[%s]\n(Unable to allocate memory)", TCP_HEADER_NAME);
+        clog_ArenaAppend(&scratch, "[tcp_connections]\n(Unable to allocate memory)");
         return;
     }
 
