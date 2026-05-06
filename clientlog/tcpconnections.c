@@ -3,7 +3,9 @@
 #include <iphlpapi.h>
 #include <tlhelp32.h>
 
-/* TCP analyzer using Windows IP Helper API (no shelling out to netstat). */
+/* TCP analyzer */
+
+#define TCP_HEADER_NAME "tcp_connections"
 
 #define TCPCONNECTIONS_DEFAULT_EPHEMERAL_START 49152
 #define TCPCONNECTIONS_DEFAULT_EPHEMERAL_COUNT 16384
@@ -127,8 +129,9 @@ static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
 
 static BOOL tcpconnections_IsCommonServerPort(DWORD port) {
     static DWORD commonServerPorts[] = {
-        20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 465, 587,
-        993, 995, 1433, 1984, 3306, 3389, 5432, 5985, 5986, 8080, 8443, 9000, 12202
+        20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 465, 587, 993, 
+        995, 1433, 1444, 1455, 1466, 1477, 1488, 3306, 3389, 5022, 5023, 
+        5024, 5025, 5432, 5985, 5986, 8080, 8403, 8443, 9000, 12202, 24158
     };
     return tcpconnections_ContainsDword(commonServerPorts, lengthof(commonServerPorts), port);
 }
@@ -164,16 +167,28 @@ static const CHAR *tcpconnections_ServiceName(DWORD port) {
     case 993: return "IMAPS";
     case 995: return "POP3S";
     case 1433: return "MS-SQL";
-    case 1984: return "MrBig";
+    case 1444: return "MS-SQL";
+    case 1455: return "MS-SQL";
+    case 1466: return "MS-SQL";
+    case 1477: return "MS-SQL";
+    case 1488: return "MS-SQL";
+    case 1984: return "MrBig Agent"; 
+    case 3260: return "iscsi-target";
     case 3306: return "MySQL";
     case 3389: return "RDP";
+    case 5022: return "MS-SQL-Listener";
+    case 5023: return "MS-SQL-Listener";
+    case 5024: return "MS-SQL-Listener";
+    case 5025: return "MS-SQL-Listener";
     case 5432: return "PostgreSQL";
     case 5985: return "WinRM-HTTP";
     case 5986: return "WinRM-HTTPS";
     case 8080: return "HTTP-Alt";
+    case 8403: return "Commvault";
     case 8443: return "HTTPS-Alt";
-    case 9000: return "Axians-Proxy-switch-name";
+    case 9000: return "SQL Proxy via LK";
     case 12202: return "Graylog";
+    case 24158: return "WMI";
     default: return "Unknown";
     }
 }
@@ -235,7 +250,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     // Read the current TCP IPv4 table once and fail fast if unavailable.
     MIB_TCPTABLE_OWNER_PID *tcp4 = tcpconnections_GetTcp4Table();
     if (tcp4 == NULL) {
-        clog_ArenaAppend(&scratch, "[tcp_connections]\n(Unable to read TCP table)");
+        clog_ArenaAppend(&scratch, "[%s]\n(Unable to read TCP table)", TCP_HEADER_NAME);
         return;
     }
 
@@ -257,7 +272,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     tcpconnections_Established *established = malloc(sizeof(tcpconnections_Established) * estabCap);
     if (established == NULL) {
         free(tcp4);
-        clog_ArenaAppend(&scratch, "[tcp_connections]\n(Unable to allocate memory)");
+        clog_ArenaAppend(&scratch, "[%s]\n(Unable to allocate memory)", TCP_HEADER_NAME);
         return;
     }
 
@@ -379,7 +394,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     }
 
     // Emit summary section and detailed per-connection rows.
-    clog_ArenaAppend(&scratch, "[tcp_connections]");
+    clog_ArenaAppend(&scratch, "[%s]", TCP_HEADER_NAME);
     clog_ArenaAppend(&scratch, "\nTCP Analyzer report (source: Windows API)");
     clog_ArenaAppend(&scratch, "\nRunDateTime: %s", nowBuf);
     clog_ArenaAppend(&scratch, "\nEphemeral Port Range: %lu-%lu (%lu ports)", ephemeralStart, ephemeralEnd, ephemeralCount);
@@ -388,7 +403,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "\nOutgoing Connections: %lu", outgoingCount);
     clog_ArenaAppend(&scratch, "\nUnknown Direction: %lu", unknownCount);
 
-    clog_ArenaAppend(&scratch, "\n\n[tcp_connections_rows]");
+    clog_ArenaAppend(&scratch, "\n\n[%s_established_rows]", TCP_HEADER_NAME);
     clog_ArenaAppend(&scratch, "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-12s  %-40s  %-17s  %-16s",
                      "host_name",
                      "direction",
@@ -432,7 +447,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     }
 
     DWORD topPorts = min(portSummaryCount, 10u);
-    clog_ArenaAppend(&scratch, "\n\n[tcp_connections_port_summary]");
+    clog_ArenaAppend(&scratch, "\n\n[%s_established_outgoing_port_summary]", TCP_HEADER_NAME);
     clog_ArenaAppend(&scratch, "\n%-10s\t%-8s\t%-18s", "RemotePort", "Count", "Service");
     for (DWORD i = 0; i < topPorts; i++) {
         clog_ArenaAppend(&scratch, "\n%-10lu\t%-8lu\t%-18s",
