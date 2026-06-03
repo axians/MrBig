@@ -46,6 +46,43 @@ typedef struct {
     DWORD NumberOfPorts;
 } tcpconnections_EphemeralPortRange;
 
+
+
+static void tcpconnections_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out, size_t outSize) {
+    if (outSize == 0) return;
+
+    TIME_ZONE_INFORMATION tzi;
+    DWORD tzStatus = GetTimeZoneInformation(&tzi);
+    LONG biasMinutes = tzi.Bias;
+
+    if (tzStatus == TIME_ZONE_ID_STANDARD) {
+        biasMinutes += tzi.StandardBias;
+    } else if (tzStatus == TIME_ZONE_ID_DAYLIGHT) {
+        biasMinutes += tzi.DaylightBias;
+    }
+
+    LONG offsetMinutes = -biasMinutes;
+    char sign = '+';
+    if (offsetMinutes < 0) {
+        sign = '-';
+        offsetMinutes = -offsetMinutes;
+    }
+
+    snprintf(out,
+             outSize,
+             "%04u-%02u-%02uT%02u:%02u:%02u%c%02ld:%02ld",
+             t->wYear,
+             t->wMonth,
+             t->wDay,
+             t->wHour,
+             t->wMinute,
+             t->wSecond,
+             sign,
+             offsetMinutes / 60,
+             offsetMinutes % 60);
+}
+
+
 static BOOL tcpconnections_ContainsDword(const DWORD *arr, DWORD len, DWORD value) {
     for (DWORD i = 0; i < len; i++) {
         if (arr[i] == value) return TRUE;
@@ -351,8 +388,8 @@ void clog_tcp_connections(clog_Arena scratch) {
     // Capture run timestamp and constants used by the direction heuristic.
     SYSTEMTIME t;
     GetLocalTime(&t);
-    CHAR nowBuf[32];
-    clog_utils_PrettySystemtime(&t, clog_utils_TIMESTAMP_DATETIME, nowBuf, sizeof(nowBuf));
+    CHAR nowBuf[64];
+    tcpconnections_PrettyIso8601LocalTime(&t, nowBuf, sizeof(nowBuf));
 
     DWORD ephemeralStart = 0;
     DWORD ephemeralCount = 0;
@@ -508,15 +545,15 @@ void clog_tcp_connections(clog_Arena scratch) {
     // Emit summary section and detailed per-connection rows.
     clog_ArenaAppend(&scratch, "[%s]", TCP_HEADER_NAME);
     clog_ArenaAppend(&scratch, "\nTCP Analyzer report (source: Windows API)");
-    clog_ArenaAppend(&scratch, "\nRunDateTime: %s", nowBuf);
     clog_ArenaAppend(&scratch, "\nEphemeral Port Range: %lu-%lu (%lu ports)", ephemeralStart, ephemeralEnd, ephemeralCount);
     clog_ArenaAppend(&scratch, "\nTotal Connections: %lu", estabCount);
     clog_ArenaAppend(&scratch, "\nIncoming Connections: %lu", incomingCount);
     clog_ArenaAppend(&scratch, "\nOutgoing Connections: %lu", outgoingCount);
     clog_ArenaAppend(&scratch, "\nUnknown Direction: %lu", unknownCount);
+    clog_ArenaAppend(&scratch, "\nFqdn: %s", fqdn);
 
     clog_ArenaAppend(&scratch, "\n\n[%s_established_rows]", TCP_HEADER_NAME);
-    clog_ArenaAppend(&scratch, "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-12s  %-40s  %-17s  %-16s",
+    clog_ArenaAppend(&scratch, "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-12s  %-40s  %-17s  %-16s  %-32s",
                      "host_name",
                      "direction",
                      "pid",
@@ -526,7 +563,8 @@ void clog_tcp_connections(clog_Arena scratch) {
                      "source_port",
                      "target_fqdn",
                      "target_ip",
-                     "target_port");
+                     "target_port",
+                     "run_datetime");
     for (DWORD i = 0; i < estabCount; i++) {
         const tcpconnections_Established *e = &established[i];
         const CHAR *sourceFqdn = fqdn;
@@ -545,7 +583,7 @@ void clog_tcp_connections(clog_Arena scratch) {
             targetPort = e->LocalPort;
         }
 
-        clog_ArenaAppend(&scratch, "\n%-15.15s  %-10.10s  %-8lu  %-31.31s  %-40.120s  %-17.17s  %-12lu  %-40.120s  %-17.17s  %-16lu",
+        clog_ArenaAppend(&scratch, "\n%-15.15s  %-10.10s  %-8lu  %-31.31s  %-40.120s  %-17.17s  %-12lu  %-40.120s  %-17.17s  %-16lu  %-32.32s",
                          hostName,
                          tcpconnections_DirectionLabel(e->Direction),
                          e->Pid,
@@ -555,7 +593,8 @@ void clog_tcp_connections(clog_Arena scratch) {
                          sourcePort,
                          targetFqdn,
                          targetIp,
-                         targetPort);
+                         targetPort,
+                         nowBuf);
     }
 
     DWORD topPorts = min(portSummaryCount, 10u);
