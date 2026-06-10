@@ -1,8 +1,8 @@
 
-# CFLAGS = -Wall -O -g -DDEBUG
+# CFLAGS = -Wall -O -g -DDEBUG -DSTANDALONE -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 ODIR = .
-_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
+_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o dirs.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 exe: x86.exe x64.exe
@@ -43,6 +43,9 @@ clock: $(ODIR)/clock.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 date: $(ODIR)/date.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) -o $@ $^
+
+dirs: $(ODIR)/dirs.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o

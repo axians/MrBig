@@ -46,6 +46,9 @@ void clog_date(clog_Arena scratch);
 /* diskinfo */
 void clog_diskinfo(clog_Arena scratch);
 
+/* largest dirs */
+void clog_dirs(clog_Arena scratch);
+
 /* eventlog */
 void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch);
 

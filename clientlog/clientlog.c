@@ -55,6 +55,9 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_diskinfo, arena);
     clog_ArenaAppend(&arena, "\n");
+    RUN(clog_dirs, arena);
+    clog_ArenaAppend(&arena, "\n");
+
 
     RUN(clog_winmemory, arena);
     clog_ArenaAppend(&arena, "\n");
