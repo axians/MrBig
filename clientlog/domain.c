@@ -1,5 +1,5 @@
 #include "clientlog.h"
-#include <lmjoin.h>
+#include <lm.h>
 
 void clog_domain(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[domain]");
