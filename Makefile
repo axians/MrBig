@@ -25,7 +25,7 @@ OBJS=cfg.o cpu.o disk.o memory.o msgs.o procs.o svcs.o mrbig.o \
 	strlcpy.o disphelper.o wmi.o
 NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o procsnt.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o
-CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o bios.o date.o diskinfo.o \
+CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o bios.o date.o diskinfo.o domain.o \
 	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o \
 	who.o winmemory.o winports.o winroute.o winuptime.o arena.o utils.o clientlog.o
 CLIENTLOGOBJS_32=$(patsubst %,../clientlog/build_x86/%,$(CLIENTLOGOBJS))
@@ -95,11 +95,11 @@ mrwmi.exe: $(OBJS) wmi.o disphelper.o
 
 mrbig.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig.exe"
-	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32
 
 mrbig64.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig64.exe"
-	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 
+	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32
 
 mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
