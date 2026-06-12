@@ -31,6 +31,9 @@ void clog_applications(clog_Arena scratch);
 /* bios */
 void clog_bios(clog_Arena scratch);
 
+/* domain */
+void clog_domain(clog_Arena scratch);
+
 /* certificates */
 void clog_certificates(clog_Arena scratch);
 
