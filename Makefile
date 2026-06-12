@@ -94,11 +94,11 @@ mrwmi.exe: $(OBJS) wmi.o disphelper.o
 
 mrbig.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig.exe"
-	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lNetapi32
+	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32
 
 mrbig64.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig64.exe"
-	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lNetapi32
+	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32
 
 mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
