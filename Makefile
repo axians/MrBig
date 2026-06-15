@@ -1,7 +1,7 @@
 
 PACKAGE=MrBig
 
-VERSION=0.26.4
+VERSION=0.26.5
 
 COMPANY=Axians AB
 COPYRIGHT=Axians AB
@@ -49,6 +49,7 @@ FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2
 ifeq ($(DEV),1)
 # Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
 	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
+  CFLAGS=-Wall -O -g -DDEBUG -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(FILEVER_STR)\" 
 else
 # Release: 1.2.3.4
 	FILEVER_STR := $(VERSION)
@@ -98,13 +99,13 @@ mrbig.exe: $(OBJS) clientlog.o $(VER_RES)
 
 mrbig64.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig64.exe"
-	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 
 
 mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
 
 clientlog.o:
-	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(VERSION)"
+	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(FILEVER_STR)"
 
 # evilbbd.exe: evilbbd.c
 #	$(CC) $(CFLAGS) -o evilbbd.exe evilbbd.c -lws2_32

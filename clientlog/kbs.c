@@ -1,18 +1,25 @@
 #include "clientlog.h"
 #include <initguid.h>
-#include <wuapi.h>
+#include <wbemidl.h>
 #include <wuerror.h>
+
+#ifdef STANDALONE
+// This is to be able to compile kbs.exe as a standalone exe to test
+// Otherwise, LOG_DEBUG is an alias to mrlog, which is not available in a standalone exe
+#undef LOG_DEBUG
+
+#define LOG_DEBUG(fmt, ...)                                                                        \
+    do {                                                                                           \
+        printf("\t" fmt "\n", ##__VA_ARGS__);                                                      \
+    } while (0)
+
+#endif
 
 typedef struct TreeSet {
     struct TreeSet *Left;
     struct TreeSet *Right;
     DWORD Value;
 } TreeSet;
-
-struct ComString {
-    UINT32 len;
-    wchar_t content[1];
-};
 
 DWORD kbs_ExtractKBNumber(wchar_t *title) {
     DWORD res = 0;
@@ -52,102 +59,90 @@ void kbs_InsertKB(TreeSet **root, TreeSet *node) {
 
 void kbs_appendKBs(clog_Arena *a, TreeSet *root) {
     LOG_DEBUG("\t\tkbs.c: Appending KB%d.", root->Value);
-    if (root->Left) kbs_appendKBs(a, root->Left);
+    if (root->Left)
+        kbs_appendKBs(a, root->Left);
     clog_ArenaAppend(a, "\nKB%lu", root->Value);
-    if (root->Right) kbs_appendKBs(a, root->Right);
+    if (root->Right)
+        kbs_appendKBs(a, root->Right);
 }
 
 void clog_kbs(clog_Arena scratch) {
     TreeSet *kbs = NULL;
-    IUpdateSession *session = NULL;
-    IUpdateSearcher *searcher = NULL;
-    ISearchResult *searchResult = NULL;
-    IUpdateCollection *updates = NULL;
+
+    IWbemLocator *locator = NULL;
+    IWbemServices *services = NULL;
+    IEnumWbemClassObject *enumerator = NULL;
     clog_ArenaAppend(&scratch, "[kbs]");
 
 
 
     LOG_DEBUG("\tkbs.c: Initializing COM library.");
-    HRESULT status = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    if (status != S_OK) {
+    HRESULT status = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    if (FAILED(status)) {
         LOG_DEBUG("\tkbs.c: COM library could not be initalized, error code %lu.", GetLastError());
         clog_ArenaAppend(&scratch, "(Unable to initialize COM)");
         return;
     }
 
 #define HANDLE_COM_ALLOCATION(obj)                                                               \
-    if (status != S_OK) {                                                                   \
+    if (FAILED(status)) {                                                                   \
         LOG_DEBUG("\tkbs.c: COM library " #obj " failed, error code %lu.", GetLastError()); \
         goto Cleanup;                                                                       \
     }                                                                                       \
     clog_Defer(&scratch, obj, RETURN_LONG, obj->lpVtbl->Release)
 
     LOG_DEBUG("\tkbs.c: Starting COM session.");
-    status = CoCreateInstance(&CLSID_UpdateSession, NULL, CLSCTX_INPROC_SERVER, &IID_IUpdateSession, (LPVOID *)&session);
-    HANDLE_COM_ALLOCATION(session);
+    status = CoCreateInstance(&CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, &IID_IWbemLocator,
+                          (LPVOID *)&locator);
 
-    LOG_DEBUG("\tkbs.c: Creating searcher.");
-    status = session->lpVtbl->CreateUpdateSearcher(session, &searcher);
-    HANDLE_COM_ALLOCATION(searcher);
+    HANDLE_COM_ALLOCATION(locator);
 
-    wchar_t *queryChar = L"( IsInstalled = 1 and IsHidden = 0 )";
-    BSTR query = SysAllocString(queryChar);
-    clog_Defer(&scratch, query, RETURN_VOID, SysFreeString);
-    // Very slow, see earlier commit in history for other version using another method
-    status = searcher->lpVtbl->Search(searcher, query, &searchResult);
-    HANDLE_COM_ALLOCATION(searchResult);
+    LOG_DEBUG("\tkbs.c: Connecting to WMI service.");
+    status = locator->lpVtbl->ConnectServer(locator, L"ROOT\\CIMV2", NULL, NULL, 0, 0, 0, 0, &services);
+    HANDLE_COM_ALLOCATION(services);
 
-    OperationResultCode searchResultCode = 0;
-    status = searchResult->lpVtbl->get_ResultCode(searchResult, &searchResultCode);
-    if (status != S_OK || (searchResultCode != orcSucceeded && searchResultCode != orcSucceededWithErrors)) {
-        LOG_DEBUG("\tkbs.c: Could not complete search, error code %lu.", GetLastError());
-        goto Cleanup;
-    }
+    LOG_DEBUG("\tkbs.c: Creating CoSetProxyBlanket.");
+    status = CoSetProxyBlanket((IUnknown *)services, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL,
+                           RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE);
+    HANDLE_COM_ALLOCATION(services);
 
-    status = searchResult->lpVtbl->get_Updates(searchResult, &updates);
-    HANDLE_COM_ALLOCATION(updates);
+    LOG_DEBUG("\tkbs.c: Executing WMI query to get list of installed KBs.");
+    status = services->lpVtbl->ExecQuery(services, L"WQL",
+                                     L"SELECT HotFixID FROM Win32_QuickFixEngineering",
+                                     WBEM_FLAG_FORWARD_ONLY, NULL, &enumerator);
+    HANDLE_COM_ALLOCATION(enumerator);
 
-    LONG count = 0;
-    status = updates->lpVtbl->get_Count(updates, &count);
-    if (status != S_OK) {
-        LOG_DEBUG("\tkbs.c: Could not get count, error code %lu.", GetLastError());
-        goto Cleanup;
-    }
-    if (count == 0) {
-        LOG_DEBUG("\tkbs.c: Searcher update count is zero.");
-        goto Cleanup;
-    }
+    while (1) {
+        IWbemClassObject *obj = NULL;
+        ULONG returned = 0;
 
-    for (int i = 0; i < count; i++) {
-        LOG_DEBUG("\tkbs.c: Item %d:", i);
-        IUpdate *item;
-        updates->lpVtbl->get_Item(updates, i, &item);
-        if (status != S_OK) {
-            LOG_DEBUG("\t\tkbs.c: Could not get item %d, error code %lu.", i, GetLastError());
-            continue;
+        status = enumerator->lpVtbl->Next(enumerator, WBEM_INFINITE, 1, &obj, &returned);
+
+        if (returned == 0 || FAILED(status)) {
+            // No more results or an error occurred, either way break out of the loop
+            break;
         }
 
-        wchar_t *title = NULL;
-        item->lpVtbl->get_Title(item, (short unsigned int **)&title);
-        if (status != S_OK) {
-            LOG_DEBUG("\t\tkbs.c: Could not get item title, error code %lu.", GetLastError());
-            goto NextItem;
+        VARIANT value;
+        VariantInit(&value);
+
+        status = obj->lpVtbl->Get(obj, L"HotFixID", 0, &value, NULL, NULL);
+
+        if (SUCCEEDED(status) && value.vt == VT_BSTR && value.bstrVal) {
+
+            DWORD kb = kbs_ExtractKBNumber(value.bstrVal);
+            LOG_DEBUG("\t\tkbs.c: Extracted KB number %lu from WMI query result.", kb);
+            if (kb > 0) {
+                TreeSet *node = clog_ArenaAlloc(&scratch, TreeSet, 1);
+                *node = (TreeSet){0};
+                node->Value = kb;
+                kbs_InsertKB(&kbs, node);
+            }
         }
 
-        LOG_DEBUG("\t\tkbs.c: Extracting KB number from title.");
-        DWORD kb = kbs_ExtractKBNumber(title);
-        if (kb) {
-            LOG_DEBUG("\t\tkbs.c: Extracted KB%lu. Adding to list.", kb);
-            TreeSet *node = clog_ArenaAlloc(&scratch, TreeSet, 1);
-            *node = (TreeSet){0};
-            node->Value = kb;
-            kbs_InsertKB(&kbs, node);
-        } else
-            LOG_DEBUG("\t\tkbs.c: Title did not contain KB number, skipping.");
-
-    NextItem:
-        LOG_DEBUG("\t\tkbs.c: Releasing item %d.", i);
-        item->lpVtbl->Release(item);
+        LOG_DEBUG("\tkbs.c: Releasing WMI object.");
+        VariantClear(&value);
+        obj->lpVtbl->Release(obj);
     }
 
 Cleanup:

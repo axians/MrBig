@@ -1,5 +1,5 @@
 
-# CFLAGS = -Wall -O -g -DDEBUG
+# CFLAGS = -Wall -O -g -DDEBUG -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 ODIR = .
 _OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
@@ -25,7 +25,7 @@ clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -c -o $@ $< 
 
 clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lOle32 -DCLIENTLOGEXE
+	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lole32 -loleaut32
 
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
@@ -49,13 +49,13 @@ diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 eventlog: $(ODIR)/eventlog.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lWevtapi
+	$(CC) $(CFLAGS) -o $@ $^ -lwevtapi
 
 ipconfig: $(ODIR)/ipconfig.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 kbs: $(ODIR)/kbs.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lOle32
+	$(CC) $(CFLAGS) -o $@ $^ -lole32 -loleaut32
 
 osversion: $(ODIR)/osversion.o
 	$(CC) $(CFLAGS) -o $@ $^
@@ -70,13 +70,13 @@ runningservices: $(ODIR)/runningservices.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 who: $(ODIR)/who.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lWtsapi32
+	$(CC) $(CFLAGS) -o $@ $^ -lwtsapi32
 
 winmemory: $(ODIR)/winmemory.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -lpdh
 
 winports: $(ODIR)/winports.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^  -lWs2_32  -lIphlpapi
+	$(CC) $(CFLAGS) -o $@ $^  -lws2_32  -liphlpapi
 	
 winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
