@@ -142,6 +142,11 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
 
             if (deviceNumberSuccess) { // TODO handle error
                 LOG_DEBUG("\t\tdiskinfo.c: Read device info from file descriptor. Adding drive.");
+                LOG_DEBUG("\t\tdiskinfo.c: Device number %lu, partition number %lu, device type %lu.", storageInfo.DeviceNumber, storageInfo.PartitionNumber, storageInfo.DeviceType);
+                if (numDisks == 0 || storageInfo.DeviceNumber >= numDisks) {
+                    LOG_DEBUG("\t\tdiskinfo.c: Device number out of bounds. Skipping. This should be fixed with a restart.");
+                    continue;
+                }
                 diskinfo_Drive *drivestack = disks[storageInfo.DeviceNumber].Drives;
                 diskinfo_Drive *drivestackPrev = NULL;
                 while (drivestack != NULL) {
