@@ -1,5 +1,6 @@
 #include "clientlog.h"
 #include <lm.h>
+#define SECURITY_WIN32
 #include <secext.h>
 
 void clog_domain(clog_Arena scratch) {
