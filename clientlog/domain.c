@@ -1,5 +1,6 @@
 #include "clientlog.h"
 #include <lm.h>
+#include <secext.h>
 
 void clog_domain(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[domain]");
@@ -19,8 +20,28 @@ void clog_domain(clog_Arena scratch) {
         wcstombs(domainName, nameBuf, sizeof(domainName) - 1);
     NetApiBufferFree(nameBuf);
 
-    clog_ArenaAppend(&scratch, "\n%12s:\t%s", "Domain", domainName);
-    clog_ArenaAppend(&scratch, "\n%12s:\t%s", "PartOfDomain", partOfDomain ? "True" : "False");
+    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "PartOfDomain", partOfDomain ? "True" : "False");
+    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "NetBiosDomain", domainName);
+
+    CHAR hostName[256] = {0};
+    DWORD hostNameLen = lengthof(hostName);
+    GetComputerNameA(hostName, &hostNameLen);
+
+    CHAR fqdn[256] = {0};
+    DWORD fqdnLen = lengthof(fqdn);
+    if (!GetComputerNameExA(ComputerNameDnsFullyQualified, fqdn, &fqdnLen))
+        snprintf(fqdn, sizeof(fqdn), "%s", hostName);
+
+    CHAR upnBuf[512] = {0};
+    DWORD upnLen = lengthof(upnBuf);
+    CHAR upnDomain[256] = {0};
+    if (GetComputerObjectNameA(NameUserPrincipal, upnBuf, &upnLen)) {
+        CHAR *at = strchr(upnBuf, '@');
+        if (at)
+            snprintf(upnDomain, sizeof(upnDomain), "%s", at + 1);
+    }
+    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "UPNDomain", upnDomain);
+    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "FQDN", fqdn);
 }
 
 #ifdef STANDALONE

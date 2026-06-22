@@ -25,7 +25,7 @@ clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -c -o $@ $< 
 
 clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lOle32 -lnetapi32 -DCLIENTLOGEXE
+	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lOle32 -lnetapi32 -lSecur32 -DCLIENTLOGEXE
 
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
@@ -46,7 +46,7 @@ date: $(ODIR)/date.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 domain: $(ODIR)/domain.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32
+	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32 -lSecur32
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
