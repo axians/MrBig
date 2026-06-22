@@ -49,6 +49,7 @@ FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2
 ifeq ($(DEV),1)
 # Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
 	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
+	CFLAGS=-Wall -g -ggdb -DDEBUG -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(FILEVER_STR)\"
 else
 # Release: 1.2.3.4
 	FILEVER_STR := $(VERSION)
@@ -104,7 +105,7 @@ mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
 
 clientlog.o:
-	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(VERSION)"
+	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(FILEVER_STR)"
 
 # evilbbd.exe: evilbbd.c
 #	$(CC) $(CFLAGS) -o evilbbd.exe evilbbd.c -lws2_32
