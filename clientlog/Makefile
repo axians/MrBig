@@ -46,7 +46,7 @@ date: $(ODIR)/date.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 domain: $(ODIR)/domain.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32
+	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32 -lSecur32
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
