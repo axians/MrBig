@@ -1,7 +1,5 @@
 #include "clientlog.h"
 #include <lm.h>
-#define SECURITY_WIN32
-#include <secext.h>
 
 void clog_domain(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[domain]");
@@ -33,14 +31,13 @@ void clog_domain(clog_Arena scratch) {
     if (!GetComputerNameExA(ComputerNameDnsFullyQualified, fqdn, &fqdnLen))
         snprintf(fqdn, sizeof(fqdn), "%s", hostName);
 
-    CHAR upnBuf[512] = {0};
-    DWORD upnLen = lengthof(upnBuf);
     CHAR upnDomain[256] = {0};
-    if (GetComputerObjectNameA(NameUserPrincipal, upnBuf, &upnLen)) {
-        CHAR *at = strchr(upnBuf, '@');
-        if (at)
-            snprintf(upnDomain, sizeof(upnDomain), "%s", at + 1);
+
+    char *first_dot = strchr(fqdn, '.');
+    if (first_dot) {
+        snprintf(upnDomain, sizeof(upnDomain), "%s", first_dot + 1);
     }
+
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "UPNDomain", upnDomain);
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "FQDN", fqdn);
 }
