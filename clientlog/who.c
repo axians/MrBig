@@ -139,7 +139,7 @@ void clog_who(DWORD maxNumSessions, clog_Arena scratch) {
 #ifdef STANDALONE
 int main(int argc, CHAR *argv[]) {
     clog_ArenaState *st = clog_ArenaMake(0x1000);
-    who(5, st->Memory);
+    clog_who(5, st->Memory);
     printf("%s", st->Start);
 }
 #endif
