@@ -1,560 +1,390 @@
 #include "arena.h"
 #include "clientlog.h"
 #include <fileapi.h>
-#include <minwindef.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <windows.h>
-#include <winioctl.h>
 #include <winnt.h>
 #include <winscard.h>
-
 
 #define DIRS_MAX_SIZE 5000000
 
 #define DIRS_HASH_EMPTY ((uint64_t)-1)
 
-typedef struct {
-    uint64_t *buckets;
-    uint64_t capacity;
-} PathIndexMap;
+#define DIRS_INVALID 0xFFFFFFFFu
+
+#define DIRS_TOP_N 20
 
 typedef struct {
+    uint32_t parent;
+    uint32_t first_child;
+    uint32_t next_sibling;
+
+    uint32_t name_offset;
+    uint16_t name_len;
+
+    uint64_t direct_size;
+    uint64_t total_size;
+    uint64_t largest_descendant;
+} DirEntry;
+
+typedef struct {
+    uint32_t dir_idx;
     char path[MAX_PATH * 4];
-    uint64_t size;
-    FILETIME last_write;
-    BOOLEAN is_folder;
-    BOOLEAN scanned;
-    BOOLEAN deleted;
-} DirCacheEntry;
+} StackItem;
 
 typedef struct {
-    DirCacheEntry *entries;
-    uint64_t length;
-    uint64_t capacity;
+    StackItem *items;
+    uint32_t size;
+    uint32_t cap;
+} Stack;
 
-    PathIndexMap map;
-} DirCache;
+typedef struct {
+    DirEntry *dirs;
+    uint32_t dir_count;
+    uint32_t dir_cap;
 
-static uint64_t hash_path(const char *s) {
-    uint64_t h = 1469598103934665603ULL;
+    char *pool;
+    uint32_t pool_size;
+    uint32_t pool_cap;
+} ScanCtx;
 
-    while (*s) {
-        h ^= (unsigned char)*s++;
-        h *= 1099511628211ULL;
+typedef struct {
+    uint32_t idx;
+    uint64_t size;
+} TopEntry;
+
+typedef struct {
+    TopEntry items[DIRS_TOP_N];
+    uint32_t count;
+} TopDirs;
+
+static void dirs_top_add(TopDirs *t, uint32_t idx, uint64_t size) {
+    // ignore empty
+    if (size == 0)
+        return;
+
+    TopEntry e = {idx, size};
+
+    // still space
+    if (t->count < DIRS_TOP_N) {
+        t->items[t->count++] = e;
+        return;
     }
 
-    return h;
+    // find smallest in current top
+    uint32_t min_i = 0;
+    for (uint32_t i = 1; i < DIRS_TOP_N; i++) {
+        if (t->items[i].size < t->items[min_i].size)
+            min_i = i;
+    }
+
+    // only replace if bigger
+    if (size > t->items[min_i].size)
+        t->items[min_i] = e;
 }
 
-void map_resize(PathIndexMap *m, const DirCache *cache) {
-    size_t old_capacity = m->capacity;
-    uint64_t *old_buckets = m->buckets;
+static int dirs_is_useful(ScanCtx *c, uint32_t i) {
+    uint64_t total = c->dirs[i].total_size;
+    uint64_t big = c->dirs[i].largest_descendant;
 
-    size_t new_capacity = old_capacity ? old_capacity * 2 : 1024;
+    if (total == 0)
+        return 0;
 
-    uint64_t *new_buckets = malloc(new_capacity * sizeof(*new_buckets));
+    double r = (double)big / (double)total;
 
-    if (!new_buckets) {
-        fprintf(stderr, "map_resize: out of memory\n");
-        exit(1);
-    }
+    return r < 0.85;
+}
 
-    for (size_t i = 0; i < new_capacity; i++)
-        new_buckets[i] = DIRS_HASH_EMPTY;
+void dirs_collect_top(ScanCtx *c, TopDirs *t) {
+    t->count = 0;
 
-    m->buckets = new_buckets;
-    m->capacity = new_capacity;
-
-    for (size_t i = 0; i < old_capacity; i++) {
-
-        if (old_buckets[i] == DIRS_HASH_EMPTY)
+    for (uint32_t i = 0; i < c->dir_count; i++) {
+        if (!dirs_is_useful(c, i)) // try to filter dirs smartly
+            continue;
+        if (c->dirs[i].parent == DIRS_INVALID) // ignore root disk path like C:
             continue;
 
-        uint64_t index = old_buckets[i];
+        dirs_top_add(t, i, c->dirs[i].total_size);
+    }
+}
+void dirs_print_path(ScanCtx *c, uint32_t idx, clog_Arena *arena) {
+    uint32_t stack[128];
+    int depth = 0;
 
-        /* Rehash using the path stored in the cache */
-        const char *path = cache->entries[index].path;
-
-        uint64_t h = hash_path(path);
-        size_t pos = h % m->capacity;
-
-        while (m->buckets[pos] != DIRS_HASH_EMPTY)
-            pos = (pos + 1) % m->capacity;
-
-        m->buckets[pos] = index;
+    while (idx != 0xFFFFFFFF) {
+        stack[depth++] = idx;
+        idx = c->dirs[idx].parent;
     }
 
-    free(old_buckets);
-}
-void map_init(PathIndexMap *m, uint64_t cap) {
-    m->capacity = cap;
-    m->buckets = malloc(cap * sizeof(uint64_t));
+    for (int i = depth - 1; i >= 0; i--) {
+        uint32_t id = stack[i];
+        char *name = c->pool + c->dirs[id].name_offset;
 
-    for (uint64_t i = 0; i < cap; i++)
-        m->buckets[i] = DIRS_HASH_EMPTY;
-}
-DirCacheEntry *map_find(DirCache *m, const char *path) {
-    uint64_t h = hash_path(path);
-    uint64_t i = h % m->capacity;
+        clog_ArenaAppend(arena, "%s", name);
 
-    while (m->map.buckets[i] != DIRS_HASH_EMPTY) {
-        uint64_t idx = m->map.buckets[i];
-
-        DirCacheEntry *entry = &m->entries[idx];
-
-        if (strcmp(entry->path, path) == 0)
-
-            return entry;
-
-        i = (i + 1) % m->map.capacity;
-    }
-
-    return NULL;
-}
-void map_set(PathIndexMap *m, DirCache *cache, const char *path, uint64_t index) {
-    // resize BEFORE probing
-    if ((cache->length + 1) * 100 / m->capacity > 70)
-        map_resize(m, cache);
-
-    uint64_t h = hash_path(path);
-    uint64_t i = h % m->capacity;
-
-    size_t probes = 0;
-
-    while (m->buckets[i] != DIRS_HASH_EMPTY) {
-
-        uint64_t existing_index = m->buckets[i];
-
-        if (_stricmp(cache->entries[existing_index].path, path) == 0) {
-            m->buckets[i] = index; // optional update
-            return;
+        if (i != 0) {
+            clog_ArenaAppend(arena, "\\");
         }
-
-        if (++probes > m->capacity) {
-            printf("HASH LOOP DETECTED: %s\n", path);
-            return;
-        }
-
-        i = (i + 1) % m->capacity;
-    }
-
-    m->buckets[i] = index;
-}
-
-DirCacheEntry *dir_cache_find(DirCache *c, const char *path) {
-    uint64_t h = hash_path(path);
-    uint64_t i = h % c->map.capacity;
-    size_t probes = 0;
-    while (c->map.buckets[i] != DIRS_HASH_EMPTY) {
-        uint64_t idx = c->map.buckets[i];
-        if (++probes > c->map.capacity) {
-
-            printf("HASH LOOP DETECTED: %s\n", path);
-            return NULL;
-        }
-        if (strcmp(c->entries[idx].path, path) == 0)
-            return &c->entries[idx];
-
-        i = (i + 1) % c->map.capacity;
-    }
-
-    return NULL;
-}
-DirCacheEntry *dir_cache_insert(DirCache *c, DirCacheEntry e) {
-    // grow array
-    if (c->length == c->capacity) {
-        c->capacity = c->capacity ? c->capacity * 2 : 1024;
-        c->entries = realloc(c->entries, c->capacity * sizeof(*c->entries));
-    }
-    if ((c->length + 1) * 100 / c->map.capacity > 70)
-        map_resize(&c->map, c);
-
-    uint64_t index = c->length++;
-    c->entries[index] = e;
-
-    // insert into hash map
-    uint64_t h = hash_path(e.path);
-    uint64_t i = h % c->map.capacity;
-
-    while (c->map.buckets[i] != DIRS_HASH_EMPTY)
-        i = (i + 1) % c->map.capacity;
-
-    c->map.buckets[i] = index;
-
-    return &c->entries[index];
-}
-
-void dir_cache_print(const DirCache *cache, int from, int to) {
-
-    printf("Entries: %llu\n", cache->length);
-
-    if (to == -1 || to > cache->length)
-        to = cache->length;
-    for (uint64_t i = from; i < to; i++) {
-        const DirCacheEntry *entry = &cache->entries[i];
-
-        printf("[%llu]\n"
-               "  Path: %s\n"
-               "  Type: %s\n"
-               "  Size: %llu\n"
-               "  Last Write: %lu:%lu\n\n",
-               i, entry->path, entry->is_folder ? "Folder" : "File", entry->size,
-               entry->last_write.dwHighDateTime, entry->last_write.dwLowDateTime);
     }
 }
-void dir_cache_init(DirCache *c) {
-    c->entries = NULL;
-    c->length = 0;
-    c->capacity = 0;
 
-    map_init(&c->map, 4096); // power of 2 recommended
-}
-
-int dir_cache_push(DirCache *cache, DirCacheEntry entry) {
-    printf("length: %llu, cap: %llu\n", cache->length, cache->capacity);
-    if (cache->length == cache->capacity) {
-        // make bigger
-        uint64_t new_capacity = cache->capacity ? cache->capacity * 2 : 128;
-
-        if (new_capacity > DIRS_MAX_SIZE / sizeof(*cache->entries)) {
-            printf("new Capacity (%llu) > DIRS_MAX_SIZE\n", new_capacity);
-
-            return 0; // Will excede max capacity
-        }
-
-        DirCacheEntry *new_entires =
-            realloc(cache->entries, new_capacity * sizeof(*cache->entries));
-
-        if (!new_entires) {
-            printf("Could not alloc new entries\n");
-
-            return 0; // could not realloc
-        }
-
-        cache->entries = new_entires;
-        cache->capacity = new_capacity;
+static void dirs_push(Stack *s, StackItem it) {
+    if (s->size == s->cap) {
+        s->cap = s->cap ? s->cap * 2 : 1024;
+        s->items = realloc(s->items, s->cap * sizeof(StackItem));
     }
-    cache->entries[cache->length++] = entry;
-    return 1;
+    s->items[s->size++] = it;
 }
 
-void dir_cache_free(DirCache *cache) {
-    free(cache->entries);
+static StackItem dirs_pop(Stack *s) { return s->items[--s->size]; }
+static uint32_t dirs_pool_add_utf8(ScanCtx *c, const char *s) {
+    uint32_t len = (uint32_t)strlen(s) + 1;
 
-    cache->entries = NULL;
-    cache->length = 0;
-    cache->capacity = 0;
+    while (c->pool_size + len > c->pool_cap) {
+        c->pool_cap = c->pool_cap ? c->pool_cap * 2 : (1 << 20);
+    }
+    c->pool = realloc(c->pool, c->pool_cap);
+
+    uint32_t offset = c->pool_size;
+    memcpy(c->pool + c->pool_size, s, len);
+    c->pool_size += len;
+
+    return offset;
 }
-/* static FILETIME get_dir_time(const WIN32_FIND_DATAA *data) { return data->ftLastWriteTime; } */
 
-static uint64_t file_size_from_find_data(WIN32_FIND_DATAA *data) {
-    return ((uint64_t)data->nFileSizeHigh << 32) | (uint64_t)data->nFileSizeLow;
+static uint32_t dirs_add_dir(ScanCtx *c, uint32_t parent, const char *name) {
+    if (c->dir_count == c->dir_cap) {
+        c->dir_cap = c->dir_cap ? c->dir_cap * 2 : 65536;
+        c->dirs = realloc(c->dirs, c->dir_cap * sizeof(DirEntry));
+    }
+
+    uint32_t idx = c->dir_count++;
+
+    c->dirs[idx].parent = parent;
+    c->dirs[idx].first_child = 0xFFFFFFFF;
+    c->dirs[idx].next_sibling = 0xFFFFFFFF;
+
+    c->dirs[idx].direct_size = 0;
+    c->dirs[idx].total_size = 0;
+
+    c->dirs[idx].name_offset = dirs_pool_add_utf8(c, name);
+    c->dirs[idx].name_len = (uint16_t)strlen(name);
+
+    return idx;
 }
+static int dirs_path_join(char *dst, size_t cap, const char *a, const char *b) {
+    size_t na = strlen(a);
+    size_t nb = strlen(b);
 
-static int is_dot_dir(const char *name) {
-    return strcmp(name, ".") == 0 || strcmp(name, "..") == 0;
-}
-
-static int join_path(char *out, uint64_t out_size, const char *base, const char *name) {
-    uint64_t base_len = strlen(base);
-    uint64_t name_len = strlen(name);
-
-    int needs_slash = base_len > 0 && base[base_len - 1] != '\\' && base[base_len - 1] != '/';
-
-    uint64_t needed = base_len + (needs_slash ? 1 : 0) + name_len + 1;
-
-    if (needed > out_size) {
+    if (na + 1 + nb + 1 > cap)
         return 0;
-    }
 
-    memcpy(out, base, base_len);
-
-    uint64_t pos = base_len;
-
-    if (needs_slash) {
-        out[pos++] = '\\';
-    }
-
-    memcpy(out + pos, name, name_len);
-    out[pos + name_len] = '\0';
+    memcpy(dst, a, na);
+    dst[na] = '\\';
+    memcpy(dst + na + 1, b, nb + 1);
 
     return 1;
 }
 
-int dirs_write_file_cache(const DirCache *cache) {
+static int dirs_path_glob(char *dst, size_t cap, const char *base) {
+    size_t n = strlen(base);
 
-    FILE *file;
-    printf("Opening file\n");
-    file = fopen("dirs.cache", "wb");
-    printf("Opened file\n");
-
-    if (file == NULL) {
-        printf("Failed to open cache file for writing.\n");
+    if (n + 3 > cap)
         return 0;
-    }
-    printf("Not null\n");
 
-    if (fwrite(&cache->length, sizeof(uint64_t), 1, file) != 1) {
-        printf("Failed to write cache file.\n");
-        fclose(file);
-        return 0;
-    }
-    printf("Got length\n");
-
-    if (fwrite(cache->entries, sizeof(DirCacheEntry), cache->length, file) != cache->length) {
-        printf("Failed to write cache entries to file.\n");
-        fclose(file);
-        return 0;
-    }
-    printf("Successfully wrote %llu cache entries to file.\n", cache->length);
-
-    fclose(file);
-    return 1;
-}
-
-int dirs_load_file_cache(DirCache *cache) {
-
-    // file format is:
-    // <path> <is_folder> <bytes> <last_write (unix epoch)> \n
-    FILE *f = fopen("dirs.cache", "rb");
-    if (!f)
-        return 0;
-    uint64_t count;
-
-    if (fread(&count, sizeof(uint64_t), 1, f) != 1) {
-        printf("Failed to read cache count from file.\n");
-        fclose(f);
-        return 0;
-    }
-
-    DirCacheEntry *entries = malloc(count * sizeof(DirCacheEntry));
-    if (!entries) {
-        fclose(f);
-        return 0;
-    }
-
-    if (fread(entries, sizeof(DirCacheEntry), count, f) != count) {
-        printf("Failed to read cache entries from file.\n");
-        free(entries);
-        fclose(f);
-        return 0;
-    }
-
-    free(cache->entries);
-    cache->entries = entries;
-    cache->length = count;
-    cache->capacity = count;
-
-    if (fclose(f) != 0) {
-        printf("Failed to close cache file after reading.\n");
-        return 0;
-    }
+    memcpy(dst, base, n);
+    dst[n] = '\\';
+    dst[n + 1] = '*';
+    dst[n + 2] = '\0';
 
     return 1;
 }
 
-uint64_t scan_dir(DirCache *cache, const char *base_path, int depth, int max_depth) {
-    if (depth > max_depth)
-        return 0;
+uint32_t dirs_scan_drive(ScanCtx *c, const char *root_path) {
+    Stack st = {0};
 
-    if (_strcmpi(base_path, "C:\\Windows\\System32") == 0 ||
-        _strcmpi(base_path, "C:\\Windows\\SysWOW64") == 0 ||
-        _strcmpi(base_path, "C:\\Windows\\WinSxS") == 0)
-        return 0;
+    uint32_t root = dirs_add_dir(c, 0xFFFFFFFF, root_path);
 
-    char search[MAX_PATH * 4];
-    snprintf(search, sizeof(search), "%s\\*", base_path);
+    dirs_push(&st, (StackItem){.dir_idx = root});
 
-    WIN32_FIND_DATAA fd;
-    HANDLE h = FindFirstFileA(search, &fd);
+    strcpy(st.items[0].path, root_path);
 
-    if (h == INVALID_HANDLE_VALUE)
-        return 0;
+    st.size = 1;
 
-    uint64_t total_size = 0;
+    while (st.size > 0) {
+        StackItem cur = dirs_pop(&st);
+        uint32_t parent = cur.dir_idx;
 
-    do {
-        if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0)
+        char search[MAX_PATH * 4];
+
+        if (!dirs_path_glob(search, sizeof(search), cur.path))
             continue;
 
-        char full[MAX_PATH * 4];
-        snprintf(full, sizeof(full), "%s\\%s", base_path, fd.cFileName);
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA(search, &fd);
 
-        DWORD attrs = fd.dwFileAttributes;
-
-        if (attrs & FILE_ATTRIBUTE_REPARSE_POINT)
+        if (h == INVALID_HANDLE_VALUE)
             continue;
 
-        if (attrs & FILE_ATTRIBUTE_SYSTEM)
-            continue;
+        do {
+            if (!strcmp(fd.cFileName, ".") || !strcmp(fd.cFileName, ".."))
+                continue;
 
-        uint64_t size = 0;
+            char full[MAX_PATH * 4];
 
-        if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+            if (!dirs_path_join(full, sizeof(full), cur.path, fd.cFileName))
+                continue;
 
-            size = scan_dir(cache, full, depth + 1, max_depth);
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+                continue;
 
-        } else {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 
-            size = ((uint64_t)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
-        }
+                if (_stricmp(fd.cFileName, "System32") == 0 ||
+                    _stricmp(fd.cFileName, "sysWOW64") == 0 ||
+                    _stricmp(fd.cFileName, "WinSxS") == 0) {
+                    continue;
+                }
+                uint32_t child = dirs_add_dir(c, parent, fd.cFileName);
 
-        total_size += size;
+                // link sibling list
+                c->dirs[child].next_sibling = c->dirs[parent].first_child;
 
-        // cache insert/update only for identity, NOT size logic
-        DirCacheEntry *entry = dir_cache_find(cache, full);
+                c->dirs[parent].first_child = child;
 
-        if (!entry) {
-            DirCacheEntry e = {0};
+                dirs_push(&st, (StackItem){.dir_idx = child});
 
-            strncpy(e.path, full, sizeof(e.path) - 1);
-            e.is_folder = (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
-            e.size = size;
-            e.scanned = 1;
+                strcpy(st.items[st.size - 1].path, full);
+            } else {
+                uint64_t size =
+                    ((uint64_t)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
 
-            dir_cache_insert(cache, e);
-        }
+                c->dirs[parent].direct_size += size;
+            }
 
-    } while (FindNextFileA(h, &fd));
+        } while (FindNextFileA(h, &fd));
 
-    FindClose(h);
+        FindClose(h);
+    }
 
-    return total_size;
+    free(st.items);
+    return root;
+}
+uint32_t dirs_scanctx_add_root(ScanCtx *c, const char *root_path) {
+    return dirs_add_dir(c, 0xFFFFFFFF, root_path);
+}
+void dirs_scanctx_reserve(ScanCtx *c, uint32_t dirs, uint32_t pool_bytes) {
+    c->dir_cap = dirs;
+    c->dirs = malloc(dirs * sizeof(DirEntry));
+
+    c->pool_cap = pool_bytes;
+    c->pool = malloc(pool_bytes);
+}
+void dirs_scanctx_init(ScanCtx *c) {
+    memset(c, 0, sizeof(*c));
+
+    c->dirs = NULL;
+    c->dir_count = 0;
+    c->dir_cap = 0;
+
+    c->pool = NULL;
+    c->pool_size = 0;
+    c->pool_cap = 0;
+}
+void dirs_scanctx_deinit(ScanCtx *c) {
+    if (!c)
+        return;
+
+    free(c->dirs);
+    free(c->pool);
+
+    c->dirs = NULL;
+    c->pool = NULL;
+
+    c->dir_count = 0;
+    c->dir_cap = 0;
+
+    c->pool_size = 0;
+    c->pool_cap = 0;
 }
 
-/* uint64_t scan_dir(DirCache *cache, const char *base_path, int depth, int max_depth) { */
-/*     if (depth > max_depth) { */
-/*         return 0; */
-/*     } */
-/*     if (_strcmpi(base_path, "C:\\Windows\\System32") == 0 || */
-/*         _strcmpi(base_path, "C:\\Windows\\SysWOW64") == 0 || */
-/*         _strcmpi(base_path, "C:\\Windows\\WinSxS") == 0) { */
-/*         return 0; */
-/*     } */
-/**/
-/*     char search[MAX_PATH * 4]; */
-/*     snprintf(search, sizeof(search), "%s\\*", base_path); */
-/**/
-/*     WIN32_FIND_DATAA fd; */
-/*     HANDLE h = FindFirstFileA(search, &fd); */
-/**/
-/*     do { */
-/**/
-/*         if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) */
-/*             continue; */
-/*         char full[MAX_PATH * 4]; */
-/*         snprintf(full, sizeof(full), "%s\\%s", base_path, fd.cFileName); */
-/**/
-/*         DWORD attrs = fd.dwFileAttributes; */
-/**/
-/*         if (h == INVALID_HANDLE_VALUE) */
-/*             continue; */
-/*         if (attrs == INVALID_FILE_ATTRIBUTES) */
-/*             continue; */
-/**/
-/*         if (attrs & FILE_ATTRIBUTE_REPARSE_POINT) */
-/*             continue; */
-/**/
-/*         if (attrs & FILE_ATTRIBUTE_SYSTEM) */
-/*             continue; */
-/**/
-/*         DirCacheEntry *entry = dir_cache_find(cache, full); */
-/**/
-/*         // 2. create if missing */
-/*         if (!entry) { */
-/*             DirCacheEntry e = {0}; */
-/**/
-/*             strncpy(e.path, full, sizeof(e.path) - 1); */
-/*             e.is_folder = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0; */
-/*             e.size = ((uint64_t)fd.nFileSizeHigh << 32) | fd.nFileSizeLow; */
-/*             e.last_write = fd.ftLastWriteTime; */
-/*             e.scanned = 0; */
-/**/
-/*             entry = dir_cache_insert(cache, e); */
-/*         } */
-/**/
-/*         if (entry->is_folder && */
-/**/
-/*             !(fd.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_SYSTEM)) && */
-/*             depth <= max_depth && !entry->scanned) */
-/**/
-/*         { */
-/**/
-/*             entry->scanned = 1; */
-/**/
-/*             scan_dir(cache, full, depth + 1, max_depth); */
-/*         } */
-/**/
-/*     } while (FindNextFileA(h, &fd)); */
-/**/
-/*     FindClose(h); */
-/*     return 0; */
-/* } */
+void dirs_aggregate(ScanCtx *c, uint32_t idx) {
+    DirEntry *d = &c->dirs[idx];
+
+    uint64_t total = d->direct_size;
+    uint64_t largest = 0;
+
+    for (uint32_t child = d->first_child; child != 0xFFFFFFFF;
+         child = c->dirs[child].next_sibling) {
+
+        dirs_aggregate(c, child);
+
+        DirEntry *ch = &c->dirs[child];
+
+        total += ch->total_size;
+
+        if (ch->total_size > largest)
+            largest = ch->total_size;
+
+        if (ch->largest_descendant > largest)
+            largest = ch->largest_descendant;
+    }
+
+    d->total_size = total;
+    d->largest_descendant = largest;
+}
+
+void dirs_print_top(ScanCtx *c, TopDirs *t, clog_Arena *arena) {
+    // sort biggest first
+    for (uint32_t i = 0; i < t->count; i++)
+        for (uint32_t j = i + 1; j < t->count; j++) {
+            if (t->items[j].size > t->items[i].size) {
+                TopEntry tmp = t->items[i];
+                t->items[i] = t->items[j];
+                t->items[j] = tmp;
+            }
+        }
+
+    for (uint32_t i = 0; i < t->count; i++) {
+        uint32_t idx = t->items[i].idx;
+
+        CHAR bytes[16];
+        clog_utils_PrettyBytes(t->items[i].size, 0, bytes);
+
+        clog_ArenaAppend(arena, "%2u. %s  ", i + 1, bytes);
+
+        dirs_print_path(c, idx, arena);
+
+        clog_ArenaAppend(arena, "\n");
+    }
+}
 
 void clog_dirs(clog_Arena scratch) {
-    clog_ArenaAppend(&scratch, "\n[dirs]\n");
 
-    DirCache cache = {0};
-    dir_cache_init(&cache);
+    ScanCtx ctx;
 
-    int success = dirs_load_file_cache(&cache);
+    dirs_scanctx_init(&ctx);
 
-    printf("Loaded entries: %llu\n", cache.length);
+    // optional but recommended for large disks
+    dirs_scanctx_reserve(&ctx, 1000000, 64 * 1024 * 1024);
 
-    uint64_t old_length = cache.length;
+    dirs_scanctx_add_root(&ctx, "C:");
 
-    int max_depth = 20;
+    uint32_t root = dirs_scan_drive(&ctx, "C:");
 
-    if (!success) {
-        printf("No cache found, scanning...\n");
+    TopDirs top20 = {0};
 
-        scan_dir(&cache, "C:", 0, max_depth);
-        printf("Writing cache\n");
+    dirs_aggregate(&ctx, root);
+    dirs_collect_top(&ctx, &top20);
 
-    } else {
-        printf("Cache loaded, rebuilding hash map...\n");
-        for (size_t i = 0; i < cache.length; i++) {
+    // output to clientlog
 
-            map_set(&cache.map,
+    clog_ArenaAppend(&scratch, "[dirs]\n");
+    dirs_print_top(&ctx, &top20, &scratch);
 
-                    &cache,
-
-                    cache.entries[i].path,
-
-                    i);
-        }
-        printf("Hash map rebuilt.\n");
-        printf("Testing lookup for C:\\Windows\\write.exe...\n");
-
-        DirCacheEntry *e = dir_cache_find(&cache, "C:\\Windows\\write.exe");
-
-        if (e)
-            printf("FOUND IN LOADED CACHE\n");
-        else
-            printf("NOT FOUND (hash not rebuilt)\n");
-
-        printf("Loaded cache with %llu entries\n", cache.length);
-        for (int i = 0; i < cache.length; i++) {
-            DirCacheEntry entry = cache.entries[i];
-            scan_dir(&cache, entry.path, 0, max_depth);
-        }
-    }
-    printf("Writing cache (%llu)\n", cache.length);
-    success = dirs_write_file_cache(&cache);
-    if (success) {
-        printf("Scan complete, cache saved with %llu entries.\n", cache.length);
-
-    } else {
-        printf("Could not save cache correctly\n");
-    }
-
-    dir_cache_print(&cache, 0, 10);
-    dir_cache_free(&cache);
+    // free and deinit
+    dirs_scanctx_deinit(&ctx);
 }
+
 #ifdef STANDALONE
 int main(int argc, CHAR *argv[]) {
     clog_ArenaState *st = clog_ArenaMake(0x20000);

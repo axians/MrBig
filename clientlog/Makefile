@@ -45,7 +45,7 @@ clock: $(ODIR)/clock.o $(ODIR)/arena.o
 date: $(ODIR)/date.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
-dirs: $(ODIR)/dirs.o $(ODIR)/arena.o
+dirs: $(ODIR)/dirs.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
