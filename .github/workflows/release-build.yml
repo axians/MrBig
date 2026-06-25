@@ -1,0 +1,43 @@
+name: release-build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Install MinGW cross-compilers
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make mingw-w64 binutils-mingw-w64 zip
+
+    - name: Build MrBig
+      run: make all
+
+    - name: Upload build artifacts
+      if: github.event_name == 'release'
+      uses: actions/upload-artifact@v7
+      with:
+        name: mrbig-binaries
+        path: |
+          X64/mrbig64.exe
+          X86/mrbig.exe
+        if-no-files-found: warn
+
+    - name: Upload Release Assets
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          X64/mrbig64.exe
+          X86/mrbig.exe

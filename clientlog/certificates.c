@@ -1,7 +1,7 @@
 #include "clientlog.h"
 #include <wincrypt.h>
 
-#define CERTIFICATES_ROW_SIZE (512)
+#define CERTIFICATES_ROW_SIZE (1024)
 
 typedef struct {
     DWORD PublicKeySize;

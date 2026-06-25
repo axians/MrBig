@@ -18,7 +18,7 @@ char cfgdir[256];
 char pickupdir[256];
 char now[1024];
 static FILE *logfp = NULL;
-static int mrport, mrsleep, mrloop;
+static int mrport, mrsleep, mrloop, mrttl;
 int bootyellow, bootred;
 double dfyellow, dfred;
 int cpuyellow, cpured;
@@ -65,6 +65,11 @@ void mrlog(char *fmt, ...)
 	if (standalone) fp = stderr;
 	else fp = logfp;
 	if (!fp) return;
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+	char ts[20];
+	strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm);
+	fprintf(fp, "%s ", ts);
 	va_start(ap, fmt);
 	vfprintf(fp, fmt, ap);
 	va_end(ap);
@@ -475,6 +480,7 @@ static void readcfg(void)
 	free_grace();
 	free_options();
 	mrsleep = 300;
+	mrttl = 0;
 	mrloop = INT_MAX;
 	bootyellow = 60;
 	bootred = 30;
@@ -513,6 +519,9 @@ static void readcfg(void)
 				mrdisplay = mp;
 			} else if (!strcmp(key, "sleep")) {
 				mrsleep = atoi(value);
+			} else if (!strcmp(key, "ttl")) {
+				mrttl = atoi(value);
+				if (mrttl > 10080) mrttl = 10080;
 			} else if (!strcmp(key, "loop")) {
 				mrloop = atoi(value);
 			} else if (!strcmp(key, "bootyellow")) {
@@ -880,12 +889,16 @@ void mrsend(char *machine, char *test, char *color, char *message)
 	/* Prepare the report */
 	p = big_malloc("mrsend()", report_size+1);
 	p[0] = '\0';
-	if (is == 1) {
-		snprcat(p, report_size, "status %s.%s green %s",
-				machine, test, message);
+	if (mrttl > 0) {
+		if (is == 1)
+			snprcat(p, report_size, "status+%d %s.%s green %s", mrttl, machine, test, message);
+		else
+			snprcat(p, report_size, "status+%d %s.%s %s %s", mrttl, machine, test, color, message);
 	} else {
-		snprcat(p, report_size, "status %s.%s %s %s",
-				machine, test, color, message);
+		if (is == 1)
+			snprcat(p, report_size, "status %s.%s green %s", machine, test, message);
+		else
+			snprcat(p, report_size, "status %s.%s %s %s", machine, test, color, message);
 	}
     send_update(p);
 	big_free("mrsend()", p);

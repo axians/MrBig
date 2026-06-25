@@ -1,0 +1,48 @@
+name: PR Build and Artifact
+
+permissions:
+  contents: read
+  pull-requests: write
+
+on:
+  pull_request:
+    # Triggers on all PR events (opened, synchronize, reopened, etc.)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Install MinGW cross-compilers
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make mingw-w64 binutils-mingw-w64 zip
+
+    - name: Build MrBig
+      run: make pr
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v7
+      id: upload-artifact
+      with:
+        name: mrbig-binaries
+        path: |
+          X64/mrbig64.exe
+          X86/mrbig.exe
+        if-no-files-found: warn
+    - name: Show artifact ID
+      run: |
+        echo "Artifact ID: ${{ steps.upload-artifact.outputs.artifact-id }}"
+
+    - name: Add Artifacts to pr
+      uses: mshick/add-pr-comment@v3
+      with:
+        message: |
+            Latest build from PR can be downloaded here 🎉
+            (even for commits further down)
+
+            📦 Download binaries:
+                [mrbig-binaries.zip](${{ steps.upload-artifact.outputs.artifact-url }})
