@@ -1,3 +1,8 @@
+260126  Add filtering for external tests based on the test name & path
+        This allows to run only a subset of the configured external tests.
+        Dissalowing from system folders and users.
+        Only allowing files that end with .bat or .cmd.
+
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
         Add ubr (Update Build Revision) for clientlog as fourth value.
