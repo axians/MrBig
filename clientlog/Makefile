@@ -8,7 +8,6 @@ ifeq ($(DEV),1)
 	GIT_DIRTY?=$(shell git diff --quiet || echo -dirty)
 	VERSION?=dev+$(GIT_HASH)$(GIT_DIRTY)
 	CFLAGS=-Wall -g -ggdb -DDEBUG -O -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
-	
 else
 # Release: 1.2.3.4
 	CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
@@ -39,7 +38,7 @@ clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 
 clientlog.exe: EXTRA_CFLAGS = -DCLIENTLOGEXE
 clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o 
-	$(CC) $(CFLAGS) -o $@ $^  -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lole32
+	$(CC) $(CFLAGS) -o $@ $^  -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lole32 -lnetapi32 -lsecur32
 
 standalone:
 	$(MAKE) .clean
@@ -63,6 +62,9 @@ clock: $(ODIR)/clock.o $(ODIR)/arena.o
 
 date: $(ODIR)/date.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
+
+domain: $(ODIR)/domain.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32 -lsecur32
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
@@ -115,4 +117,3 @@ clean:
 
 .clean:
 	find . -type f \( -name '*.o' -or -name '*.exe' \)  -exec rm {} +
-

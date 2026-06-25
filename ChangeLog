@@ -1,9 +1,11 @@
-260623	Increase Uptime & Who int sizes to ULONGLONG
-				Changed the Uptime and Who modules to use ULONGLONG instead of DWORD to avoid overflow issues on 
-				systems that have been up for a long time or have users that have been logged in for a long time. 
-				This change allows the Uptime and Who modules to handle larger values without overflow.
-				Breaks compatability with windows server 2003 and earlier that don't
-				support GetTickCount64().
+260623  Increase Uptime & Who int sizes to ULONGLONG
+        Changed the Uptime and Who modules to use ULONGLONG instead of DWORD to avoid overflow issues on 
+        systems that have been up for a long time or have users that have been logged in for a long time. 
+        This change allows the Uptime and Who modules to handle larger values without overflow.
+        Breaks compatability with windows server 2003 and earlier that don't
+        support GetTickCount64().
+
+251222  Add PPID to clientlog processes
 
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
