@@ -26,12 +26,16 @@ jobs:
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v7
+      id: upload-artifact
       with:
         name: mrbig-binaries
         path: |
           X64/mrbig64.exe
           X86/mrbig.exe
         if-no-files-found: warn
+    - name: Show artifact ID
+      run: |
+        echo "Artifact ID: ${{ steps.upload.outputs.artifact-id }}"
 
     - name: Add Artifacts to pr
       uses: mshick/add-pr-comment@v3
@@ -41,5 +45,5 @@ jobs:
 
             📦 Artifacts are ready in the Actions tab:
 
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts
+            [https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload.outputs.artifact-id }}](Download link (zip))
 
