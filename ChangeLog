@@ -1,3 +1,6 @@
+260625  Clientlog KB use wmi
+				To reenable wmi without crashing, it now uses wmi requests to get the KB list.
+
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
         Add ubr (Update Build Revision) for clientlog as fourth value.
