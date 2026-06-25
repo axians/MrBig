@@ -33,3 +33,14 @@ jobs:
           X86/mrbig.exe
         if-no-files-found: warn
 
+    - name: Add Artifacts to pr
+      if: success()
+      uses: mshick/add-pr-comment@v3
+      with:
+        message: |
+          Build complete! See attached binaries
+        attach-path: |
+          X64/mrbig64.exe
+          X86/mrbig.exe
+        attach-text: '📎 [Download %ATTACH_NAME%](%ARTIFACT_URL%)'
+
