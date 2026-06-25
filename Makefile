@@ -13,7 +13,6 @@ COMMENTS=MrBig client for Xymon
 VER_RC=winver.rc
 VER_RES=winver.res
 
-#CFLAGS=-Wall -O -g -DDEBUG
 CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
 SRCS=cfg.c cpu.c disk.c memory.c msgs.c procs.c svcs.c mrbig.c \
@@ -25,7 +24,7 @@ OBJS=cfg.o cpu.o disk.o memory.o msgs.o procs.o svcs.o mrbig.o \
 	strlcpy.o disphelper.o wmi.o
 NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o procsnt.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o
-CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o bios.o date.o diskinfo.o \
+CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o bios.o date.o diskinfo.o domain.o \
 	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o \
 	who.o winmemory.o winports.o tcpconnections.o winroute.o winuptime.o arena.o utils.o clientlog.o
 CLIENTLOGOBJS_32=$(patsubst %,../clientlog/build_x86/%,$(CLIENTLOGOBJS))
@@ -40,6 +39,8 @@ EXEFILES=X86/mrbig.exe X64/mrbig64.exe
 BUILD_DATE=$(shell date +%y%m%d%H%M)
 GIT_HASH=$(shell git rev-parse --short HEAD)
 GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
+BRANCH := $(shell echo $${GITHUB_HEAD_REF:-$${GITHUB_REF_NAME:-$$(git rev-parse --abbrev-ref HEAD)}})
+
 
 FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
 
@@ -48,9 +49,13 @@ FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2
 # -----------------------------
 ifeq ($(DEV),1)
 # Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
-	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
+	FILEVER_STR := $(VERSION)-dev\ \($(BRANCH)@$(GIT_HASH)$(GIT_DIRTY)\)
+	CFLAGS=-Wall -O -g -DDEBUG -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(FILEVER_STR)\"
+else ifeq ($(PR),1)
+# PR
+	FILEVER_STR := $(VERSION)-pr\ \($(BRANCH)@$(GIT_HASH)$(GIT_DIRTY)\)
 else
-# Release: 1.2.3.4
+# Release: 1.2.3
 	FILEVER_STR := $(VERSION)
 endif
 
@@ -94,17 +99,17 @@ mrwmi.exe: $(OBJS) wmi.o disphelper.o
 
 mrbig.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig.exe"
-	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32 -lsecur32
 
 mrbig64.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig64.exe"
-	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32 -lsecur32
 
 mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
 
 clientlog.o:
-	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(VERSION)"
+	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(FILEVER_STR)"
 
 # evilbbd.exe: evilbbd.c
 #	$(CC) $(CFLAGS) -o evilbbd.exe evilbbd.c -lws2_32
@@ -177,5 +182,9 @@ dist: $(DISTFILES)
 	rm -rf $(DISTDIR)
 
 dev:
+	# shows build date and short hash in the product version string
 	$(MAKE) DEV=1 all
 
+pr: # Only change is the product version string used in the build. This is for building pull requests.
+	# Shows branch name and short hash
+	$(MAKE) PR=1 all

@@ -12,6 +12,8 @@
 260203	Changed Msgs to default to disabled with opt-in
         seemed to cause crashes when loading in registry.
         enable with option enable_msgs
+        
+251222  Add PPID to clientlog processes
 
 251517  Added Clientlog module, which writes a big log of rows,
         containg information about the Windows machine. Most info
