@@ -1,8 +1,3 @@
-260126  Add filtering for external tests based on the test name & path
-        This allows to run only a subset of the configured external tests.
-        Dissalowing from system folders and users.
-        Only allowing files that end with .bat or .cmd.
-
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
         Add ubr (Update Build Revision) for clientlog as fourth value.
@@ -12,6 +7,13 @@
 260203	Changed Msgs to default to disabled with opt-in
         seemed to cause crashes when loading in registry.
         enable with option enable_msgs
+
+260126  Add filtering for external tests based on the test name & path
+        This allows to run only a subset of the configured external tests.
+        Dissalowing from system folders and users.
+        Only allowing files that end with .bat or .cmd.
+
+251222  Add PPID to clientlog processes
 
 251517  Added Clientlog module, which writes a big log of rows,
         containg information about the Windows machine. Most info
