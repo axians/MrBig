@@ -13,7 +13,6 @@ COMMENTS=MrBig client for Xymon
 VER_RC=winver.rc
 VER_RES=winver.res
 
-#CFLAGS=-Wall -O -g -DDEBUG
 CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
 SRCS=cfg.c cpu.c disk.c memory.c msgs.c procs.c svcs.c mrbig.c \
@@ -40,6 +39,8 @@ EXEFILES=X86/mrbig.exe X64/mrbig64.exe
 BUILD_DATE=$(shell date +%y%m%d%H%M)
 GIT_HASH=$(shell git rev-parse --short HEAD)
 GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
+BRANCH := $(shell echo $${GITHUB_HEAD_REF:-$${GITHUB_REF_NAME:-$$(git rev-parse --abbrev-ref HEAD)}})
+
 
 FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
 
@@ -48,10 +49,13 @@ FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2
 # -----------------------------
 ifeq ($(DEV),1)
 # Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
-	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
-  CFLAGS=-Wall -O -g -DDEBUG -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(FILEVER_STR)\" 
+	FILEVER_STR := $(VERSION)-dev\ \($(BRANCH)@$(GIT_HASH)$(GIT_DIRTY)\)
+	CFLAGS=-Wall -O -g -DDEBUG -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(FILEVER_STR)\"
+else ifeq ($(PR),1)
+# PR
+	FILEVER_STR := $(VERSION)-pr\ \($(BRANCH)@$(GIT_HASH)$(GIT_DIRTY)\)
 else
-# Release: 1.2.3.4
+# Release: 1.2.3
 	FILEVER_STR := $(VERSION)
 endif
 
@@ -178,5 +182,9 @@ dist: $(DISTFILES)
 	rm -rf $(DISTDIR)
 
 dev:
+	# shows build date and short hash in the product version string
 	$(MAKE) DEV=1 all
 
+pr: # Only change is the product version string used in the build. This is for building pull requests.
+	# Shows branch name and short hash
+	$(MAKE) PR=1 all
