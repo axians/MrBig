@@ -41,7 +41,7 @@ jobs:
       uses: mshick/add-pr-comment@v3
       with:
         message: |
-            Build complete! 🎉
+            Latest build from PR can be downloaded here 🎉
 
             📦 Download binaries:
-            [mrbig-binaries (zip)](${{ steps.upload-artifact.outputs.artifact-url }})
+            [mrbig-binaries.zip](${{ steps.upload-artifact.outputs.artifact-url }})
