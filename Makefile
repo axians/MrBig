@@ -40,6 +40,7 @@ EXEFILES=X86/mrbig.exe X64/mrbig64.exe
 BUILD_DATE=$(shell date +%y%m%d%H%M)
 GIT_HASH=$(shell git rev-parse --short HEAD)
 GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
+GIT_BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 
 FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
 
@@ -49,6 +50,9 @@ FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2
 ifeq ($(DEV),1)
 # Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
 	FILEVER_STR := $(VERSION)-dev$(BUILD_DATE)+$(GIT_HASH)$(GIT_DIRTY)
+else ifeq ($(PR),1)
+# PR
+	FILEVER_STR := $(VERSION)-$(GIT_BRANCH)@$(GIT_HASH)$(GIT_DIRTY)
 else
 # Release: 1.2.3.4
 	FILEVER_STR := $(VERSION)
@@ -104,7 +108,7 @@ mrbignt.exe: $(NTOBJS)
 	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
 
 clientlog.o:
-	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(VERSION)"
+	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(FILEVER_STR)"
 
 # evilbbd.exe: evilbbd.c
 #	$(CC) $(CFLAGS) -o evilbbd.exe evilbbd.c -lws2_32
@@ -177,5 +181,9 @@ dist: $(DISTFILES)
 	rm -rf $(DISTDIR)
 
 dev:
+	# shows build date and short hash in the product version string
 	$(MAKE) DEV=1 all
 
+pr: # Only change is the product version string used in the build. This is for building pull requests.
+	# Shows branch name and short hash
+	$(MAKE) PR=1 all
