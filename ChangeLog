@@ -1,3 +1,5 @@
+251222  Add PPID to clientlog processes
+
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
         Add ubr (Update Build Revision) for clientlog as fourth value.
