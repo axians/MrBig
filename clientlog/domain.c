@@ -5,7 +5,14 @@
 #include <secext.h>
 #include <winnt.h>
 
+char *GetDomainFromFqdn(const char *fqdn)
+{
+    const char *dot = strchr(fqdn, '.');
+    if (!dot)
+        return NULL;
 
+    return _strdup(dot + 1);
+}
 
 void clog_domain(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[domain]");
@@ -37,17 +44,21 @@ void clog_domain(clog_Arena scratch) {
     if (!GetComputerNameExA(ComputerNameDnsFullyQualified, fqdn, &fqdnLen))
         snprintf(fqdn, sizeof(fqdn), "%s", hostName);
 
-    WCHAR upn[256] = {0};
+    CHAR upn[256] = {0};
     ULONG len = ARRAYSIZE(upn);
 
-    const WCHAR *upnDomain = L"";
-    if (GetUserNameExW(NameUserPrincipal, upn, &len)) {
-        WCHAR *at = wcschr(upn, L'@');
+    const CHAR *upnDomain = "";
+    if (GetUserNameExA(NameUserPrincipal, upn, &len)) {
+        CHAR *at = strchr(upn, '@');
         if (at)
             upnDomain = at + 1;
     }
 
-    clog_ArenaAppend(&scratch, "\n%13s:\t%ws", "UPNDomain", upnDomain);
+    if (strlen(upnDomain) == 0)
+        upnDomain = GetDomainFromFqdn(fqdn);
+
+
+    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "UPNDomain", upnDomain);
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "FQDN", fqdn);
 }
 
