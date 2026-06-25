@@ -6,6 +6,8 @@ on:
     # This is needed to allow skipping enforcement of the changelog in PRs with specific labels,
     # as defined in the (optional) "skipLabels" property.
     types: [opened, synchronize, ready_for_review]
+permissions:
+  contents: read
 
 jobs:
   # Enforces the update of a changelog file on every pull request
@@ -16,3 +18,4 @@ jobs:
       - uses: dangoslen/changelog-enforcer@v3.7.0
         with:
           changelogPath: ChangeLog
+          skipLabels: skip-changelog
