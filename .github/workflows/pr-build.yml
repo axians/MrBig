@@ -42,6 +42,7 @@ jobs:
       with:
         message: |
             Latest build from PR can be downloaded here 🎉
+            (even for commits further down)
 
             📦 Download binaries:
-            [mrbig-binaries.zip](${{ steps.upload-artifact.outputs.artifact-url }})
+                [mrbig-binaries.zip](${{ steps.upload-artifact.outputs.artifact-url }})
