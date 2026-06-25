@@ -2,7 +2,7 @@ name: PR Build and Artifact
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 on:
   pull_request:
