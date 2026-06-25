@@ -10,7 +10,7 @@ void (*clog_mrlog)(char *fmt, ...) = NULL;
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...)) {
     clog_mrlog = mrlog;
     LOG_DEBUG("Clientlog start");
-    clog_ArenaState *arenaState = clog_ArenaMake(0x80000); // 512 KB
+    clog_ArenaState *arenaState = clog_ArenaMake(0x100000); // 1 MB
     clog_Arena arena = arenaState->Memory;
 
     LOG_DEBUG("Clientlog setup");
@@ -49,6 +49,9 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_bios, arena);
     // No newline
+
+    RUN(clog_domain, arena);
+    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_who, 10, arena);
     clog_ArenaAppend(&arena, "\n");
