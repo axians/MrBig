@@ -1,8 +1,20 @@
 
-# CFLAGS = -Wall -O -g -DDEBUG
-CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
+# Used for Standalone versions or clientlog.exe
+EXTRA_CFLAGS =
+
+ifeq ($(DEV),1)
+# Dev/Beta: 1.2.3.4-betaYYMMDDHHMM+HASH[-dirty]
+	GIT_HASH?=$(shell git rev-parse --short HEAD)
+	GIT_DIRTY?=$(shell git diff --quiet || echo -dirty)
+	VERSION?=dev+$(GIT_HASH)$(GIT_DIRTY)
+	CFLAGS=-Wall -g -ggdb -DDEBUG -O -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
+else
+# Release: 1.2.3.4
+	CFLAGS = -Wall -Werror -O2 -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
+endif
+
 ODIR = .
-_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o diskinfo.o domain.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
+_OBJ = applications.o bios.o certificates.o clientversion.o clock.o date.o domain.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o who.o winmemory.o winports.o winroute.o winuptime.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 exe: x86.exe x64.exe
@@ -19,73 +31,84 @@ build_x86 build_x64:
 	mkdir -p ./$@
 
 $(ODIR)/%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -c -o $@ $< 
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $< 
 
-clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lOle32 -lnetapi32 -lsecur32 -DCLIENTLOGEXE
+clientlog.exe: EXTRA_CFLAGS = -DCLIENTLOGEXE
+clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o 
+	$(CC) $(CFLAGS) -o $@ $^  -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lole32 -lnetapi32 -lsecur32 -loleaut32
+
+standalone:
+	$(MAKE) .clean
+	$(MAKE) DEV=1 PACKAGE=$(TARGET).exe $(TARGET) EXTRA_CFLAGS="-DSTANDALONE"
+
 
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 certificates: $(ODIR)/certificates.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lcrypt32
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lcrypt32
 
 bios: $(ODIR)/bios.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 clientversion: $(ODIR)/clientversion.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 clock: $(ODIR)/clock.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 date: $(ODIR)/date.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 domain: $(ODIR)/domain.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32 -lsecur32
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 eventlog: $(ODIR)/eventlog.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lWevtapi
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lwevtapi
 
 ipconfig: $(ODIR)/ipconfig.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 kbs: $(ODIR)/kbs.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lOle32
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lole32
 
 osversion: $(ODIR)/osversion.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS)  -o $@ $^
 
 processes:  $(ODIR)/processes.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lpdh
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lpdh
 
 reboots: $(ODIR)/reboots.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 runningservices: $(ODIR)/runningservices.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 who: $(ODIR)/who.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lWtsapi32
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lwtsapi32
 
 winmemory: $(ODIR)/winmemory.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lpdh
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lpdh
 
 winports: $(ODIR)/winports.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^  -lWs2_32  -lIphlpapi
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^  -lws2_32  -liphlpapi
 	
 winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
-winuptime: $(ODIR)/uptime.o
-	$(CC) $(CFLAGS) -o $@ $^
+winuptime: $(ODIR)/winuptime.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
+
+
+dev: 
+	$(MAKE) DEV=1 exe
+
 
 .PHONY: clean
 clean:
