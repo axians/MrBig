@@ -38,6 +38,7 @@ jobs:
         echo "Artifact ID: ${{ steps.upload-artifact.outputs.artifact-id }}"
 
     - name: Add Artifacts to pr
+      continue-on-error: true
       uses: mshick/add-pr-comment@v3
       with:
         message: |
