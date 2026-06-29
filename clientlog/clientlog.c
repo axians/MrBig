@@ -72,6 +72,9 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     RUN(clog_winports, arena);
     clog_ArenaAppend(&arena, "\n");
 
+    RUN(clog_tcp_connections, arena);
+    clog_ArenaAppend(&arena, "\n");
+
     RUN(clog_processes_EndAppendQuery, hProcesses, &arena);
     // No newline
 
