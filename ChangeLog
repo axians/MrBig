@@ -1,5 +1,7 @@
-260625  Clientlog KB use wmi
-				To reenable wmi without crashing, it now uses wmi requests to get the KB list.
+260630  Clientlog KB use wmi
+        To reenable wmi without crashing, it now uses wmi requests to get the KB list.
+
+260629  Release MrBig-0.26.5
 
 260623  Increase Uptime & Who int sizes to ULONGLONG
         Changed the Uptime and Who modules to use ULONGLONG instead of DWORD to avoid overflow issues on 
@@ -9,11 +11,9 @@
         support GetTickCount64().
 
 260622  Add tcp_connections to Clientlog
-				Uses netstat to create rows of established tcp connections that can be
-				used to create a network map. And a summary of services that
-				communicate to and from this node.
-        
-251222  Add PPID to clientlog processes
+        Uses netstat to create rows of established tcp connections that can be
+        used to create a network map. And a summary of services that
+        communicate to and from this node.
 
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
