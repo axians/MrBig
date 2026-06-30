@@ -1,4 +1,5 @@
 #include "clientlog.h"
+#include <minwindef.h>
 #include <wtsapi32.h>
 
 #define MINUTE (60UL * 1000) // Milliseconds
@@ -88,10 +89,10 @@ DWORD who_GetSessions(DWORD maxNumSessions, DWORD *numRetrievedSessions, who_Ses
         session = &output[numProcessedSessions++];
         session->Id = wtsSession->SessionId;
 
-        DWORD idle_ms = (wtsSession->CurrentTime.QuadPart - wtsSession->LastInputTime.QuadPart) / 10000LL;
-        session->Idle.Days = idle_ms / DAY;
-        session->Idle.Hours = (idle_ms % DAY) / HOUR;
-        session->Idle.Minutes = (idle_ms % HOUR) / MINUTE;
+        ULONGLONG idle_ms = (wtsSession->CurrentTime.QuadPart - wtsSession->LastInputTime.QuadPart) / 10000LL;
+        session->Idle.Days = (DWORD)(idle_ms / DAY);
+        session->Idle.Hours = (DWORD)((idle_ms % DAY) / HOUR);
+        session->Idle.Minutes = (DWORD)((idle_ms % HOUR) / MINUTE);
 
         if (wtsSession->LastInputTime.LowPart || wtsSession->LastInputTime.HighPart) {
             FILETIME connectFiletime;
@@ -138,7 +139,7 @@ void clog_who(DWORD maxNumSessions, clog_Arena scratch) {
 #ifdef STANDALONE
 int main(int argc, CHAR *argv[]) {
     clog_ArenaState *st = clog_ArenaMake(0x1000);
-    who(5, st->Memory);
+    clog_who(5, st->Memory);
     printf("%s", st->Start);
 }
 #endif

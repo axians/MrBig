@@ -1,7 +1,7 @@
 
 PACKAGE=MrBig
 
-VERSION=0.26.4
+VERSION=0.26.5
 
 COMPANY=Axians AB
 COPYRIGHT=Axians AB
@@ -26,7 +26,7 @@ NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o procsnt.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o
 CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o bios.o date.o diskinfo.o domain.o \
 	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o \
-	who.o winmemory.o winports.o winroute.o winuptime.o arena.o utils.o clientlog.o
+	who.o winmemory.o winports.o tcpconnections.o winroute.o winuptime.o arena.o utils.o clientlog.o
 CLIENTLOGOBJS_32=$(patsubst %,../clientlog/build_x86/%,$(CLIENTLOGOBJS))
 CLIENTLOGOBJS_64=$(patsubst %,../clientlog/build_x64/%,$(CLIENTLOGOBJS))
 CFG=mrbig.cfg

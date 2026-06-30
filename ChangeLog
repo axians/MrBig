@@ -1,9 +1,21 @@
-260625  Add filtering for external tests based on the test name & path
+260630  Add filtering for external tests based on the test name & path
         This allows to run only a subset of the configured external tests.
         Dissalowing from system folders and users.
         Only allowing files that end with .bat or .cmd.
 
-260625  Add PPID to clientlog processes
+260629  Release MrBig-0.26.5
+
+260623  Increase Uptime & Who int sizes to ULONGLONG
+        Changed the Uptime and Who modules to use ULONGLONG instead of DWORD to avoid overflow issues on 
+        systems that have been up for a long time or have users that have been logged in for a long time. 
+        This change allows the Uptime and Who modules to handle larger values without overflow.
+        Breaks compatability with windows server 2003 and earlier that don't
+        support GetTickCount64().
+
+260622  Add tcp_connections to Clientlog
+        Uses netstat to create rows of established tcp connections that can be
+        used to create a network map. And a summary of services that
+        communicate to and from this node.
 
 260225  Add timestamp to debuglog messages.
         Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
@@ -14,6 +26,8 @@
 260203	Changed Msgs to default to disabled with opt-in
         seemed to cause crashes when loading in registry.
         enable with option enable_msgs
+        
+251222  Add PPID to clientlog processes
 
 251517  Added Clientlog module, which writes a big log of rows,
         containg information about the Windows machine. Most info
