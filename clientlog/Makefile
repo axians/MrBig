@@ -44,9 +44,6 @@ standalone:
 	$(MAKE) .clean
 	$(MAKE) DEV=1 PACKAGE=$(TARGET).exe $(TARGET) EXTRA_CFLAGS="-DSTANDALONE"
 
-clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -DCLIENTLOGEXE -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lole32 -lnetapi32 -loleaut32 -lsecur32 
-
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
