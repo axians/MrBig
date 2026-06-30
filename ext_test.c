@@ -167,7 +167,7 @@ int is_allowed_ext(const char *cmd)
 	char basepath[1024];
 	if (get_basepath(cmd, basepath, sizeof(basepath)) == NULL) return 0;
 
-	if (debug) printf("is_allowed_ext: ext='%s', basepath='%s'\n", ext, basepath);
+	if (debug) mrlog("is_allowed_ext: ext='%s', basepath='%s'\n", ext, basepath);
 	// list of strings with allowed extensions
 	const char* allowed_exts[] = {".bat", ".cmd"};
 
@@ -191,7 +191,7 @@ int is_allowed_ext(const char *cmd)
 	return 1;
 }
 
-void ext_tests(void)
+void ext_tests(int is_filter_enabled)
 {
 	char cfgfile[1024], cmd[1024], *p;
 	STARTUPINFO si;
@@ -210,7 +210,7 @@ void ext_tests(void)
 		if (p) *p = '\0';
 		if (cmd[0] == '#' || cmd[0] == '\0') continue;
 		if (debug) mrlog("Ext test: %s", cmd);
-		if (!is_allowed_ext(cmd)) {
+		if (is_filter_enabled && !is_allowed_ext(cmd)) {
 			if (debug) mrlog("Skipping disallowed ext test: %s", cmd);
 			continue;
 		}
