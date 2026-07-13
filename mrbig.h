@@ -87,7 +87,7 @@ extern void wmi(void);
 extern int service_main(int argc, char **argv);
 extern void mrbig(void);
 //extern void SvcDebugOut(LPSTR, DWORD);
-extern void ext_tests(void);
+extern void ext_tests(int is_filter_enabled);
 extern void clear_cfg(void);
 extern void add_cfg(char *name, char *cfg);
 extern int get_cfg(char *name, char *b, size_t n, int line);
