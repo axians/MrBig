@@ -44,7 +44,6 @@ standalone:
 	$(MAKE) .clean
 	$(MAKE) DEV=1 PACKAGE=$(TARGET).exe $(TARGET) EXTRA_CFLAGS="-DSTANDALONE"
 
-
 applications: $(ODIR)/applications.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
@@ -64,7 +63,7 @@ date: $(ODIR)/date.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 domain: $(ODIR)/domain.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lnetapi32 -lsecur32
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lnetapi32 -lsecur32
 
 diskinfo: $(ODIR)/diskinfo.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
@@ -76,7 +75,7 @@ ipconfig: $(ODIR)/ipconfig.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 kbs: $(ODIR)/kbs.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lole32
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lole32 -loleaut32
 
 osversion: $(ODIR)/osversion.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS)  -o $@ $^
@@ -91,7 +90,7 @@ runningservices: $(ODIR)/runningservices.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
  
 tcpconnections: $(ODIR)/tcpconnections.o $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) -o $@ $^ -lws2_32 -liphlpapi
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lws2_32 -liphlpapi
 
 who: $(ODIR)/who.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lwtsapi32
@@ -107,7 +106,6 @@ winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o
 
 winuptime: $(ODIR)/winuptime.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
-
 
 dev: 
 	$(MAKE) DEV=1 exe
