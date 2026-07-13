@@ -108,7 +108,90 @@ static void pickup(void)
 	FindClose(hFind);
 }
 
-void ext_tests(void)
+
+int contains_case_insensitive(const char *str, const char *substr) {
+	/* Defensive checks to avoid underflow and NULL derefs which can cause
+	   out-of-bounds reads and a segfault. */
+	if (str == NULL || substr == NULL) return 0;
+	size_t len_str = strlen(str);
+	size_t len_sub = strlen(substr);
+
+	if (len_sub == 0) return 1; // empty substring always matches
+	if (len_str < len_sub) return 0; // can't contain a longer substring
+
+	/* Use i + len_sub <= len_str as the loop condition to avoid subtracting
+	   unsigned values (which would underflow if len_str < len_sub). */
+	for (size_t i = 0; i + len_sub <= len_str; i++) {
+		size_t j;
+		for (j = 0; j < len_sub; j++) {
+			if (tolower((unsigned char)str[i + j]) != tolower((unsigned char)substr[j])) {
+				break;
+			}
+		}
+		if (j == len_sub) return 1; // match found
+	}
+	return 0; // no match
+}
+
+
+const char* get_basepath(const char *path, char *out, size_t outlen) {
+    if (!path || !out || outlen == 0) return NULL;
+
+    const char *p_back = strrchr(path, '\\');
+    const char *p_slash = strrchr(path, '/');
+    const char *p = p_back > p_slash ? p_back : p_slash; // the last separator
+
+    if (!p) {
+        /* no directory component */
+        if (outlen < 2) return NULL;
+        out[0] = '\0';
+        return out;
+    }
+
+    size_t len = (size_t)(p - path); // number of chars before separator
+    if (len >= outlen) return NULL; // insufficient buffer
+
+    memcpy(out, path, len);
+    out[len] = '\0';
+    return out;
+}
+
+int is_allowed_ext(const char *cmd)
+{
+	const char* ext = strrchr(cmd, '.');
+	if (ext == NULL) return 0;
+
+	if (strlen(cmd) > 128) return 0;
+
+	/* Extract basepath into a buffer (no filename). */
+	char basepath[1024];
+	if (get_basepath(cmd, basepath, sizeof(basepath)) == NULL) return 0;
+
+	if (debug) mrlog("is_allowed_ext: ext='%s', basepath='%s'\n", ext, basepath);
+	// list of strings with allowed extensions
+	const char* allowed_exts[] = {".bat", ".cmd"};
+
+	// list of disallowed folder names
+
+	const char* disallowed_folder[] = {"C:\\program files", "C:\\Program Data", "C:\\ProgramData", "C:\\Temp", "C:\\Tmp", "C:\\Windows", "C:\\Users"};
+	
+	int valid_ext = 0;
+	for (int i = 0; i < sizeof(allowed_exts)/sizeof(allowed_exts[0]); i++) {
+		if (_stricmp(ext, allowed_exts[i]) == 0) {
+			valid_ext = 1;
+			break;
+		}
+	}
+	if (!valid_ext) return 0;
+	for (int i = 0; i < sizeof(disallowed_folder)/sizeof(disallowed_folder[0]); i++) {
+		if (contains_case_insensitive(basepath, disallowed_folder[i])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+void ext_tests(int is_filter_enabled)
 {
 	char cfgfile[1024], cmd[1024], *p;
 	STARTUPINFO si;
@@ -127,6 +210,10 @@ void ext_tests(void)
 		if (p) *p = '\0';
 		if (cmd[0] == '#' || cmd[0] == '\0') continue;
 		if (debug) mrlog("Ext test: %s", cmd);
+		if (is_filter_enabled && !is_allowed_ext(cmd)) {
+			if (debug) mrlog("Skipping disallowed ext test: %s", cmd);
+			continue;
+		}
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
 		if (CreateProcess(NULL, cmd, NULL, NULL, FALSE,
