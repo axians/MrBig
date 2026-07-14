@@ -1,3 +1,13 @@
+
+260630  Clientlog KB use wmi
+        To reenable wmi without crashing, it now uses wmi requests to get the KB list.
+
+260630  Add filtering for external tests based on the test name & path
+        This allows to run only a subset of the configured external tests.
+        Dissalowing from system folders and users.
+        Only allowing files that end with .bat or .cmd.
+        Disable with --disable-ext-filters
+
 260629  Release MrBig-0.26.5
 
 260623  Increase Uptime & Who int sizes to ULONGLONG
