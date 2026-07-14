@@ -19,3 +19,6 @@ jobs:
         with:
           changelogPath: ChangeLog
           skipLabels: skip-changelog
+
+      - name: Check changelog formatting
+        run: ./format-changelog.sh ChangeLog --dry-run
