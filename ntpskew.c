@@ -8,7 +8,7 @@
 #include <winevt.h>
 
 #define NTP_SKEW_BUF      32768
-#define NTP_SKEW_TEST     "ntp_skew"
+#define NTP_SKEW_TEST     "ntp-skew"
 #define NTP_MAX_SERVERS   16
 #define NTP_SERVER_LEN    64
 #define NTP_LAST_N_EVENTS   10
