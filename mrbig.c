@@ -6,6 +6,14 @@
 #define PATTERN_SIZE (sizeof big_pattern)
 #define CHUNKS_MAX 10000
 
+/* Hardcoded HTTP transport settings for now. */
+#define MRBIG_USE_HTTP 1
+#define MRBIG_HTTP_HOST "192.168.10.210"
+#define MRBIG_HTTP_PORT 80
+#define MRBIG_HTTP_PATH "/xymon-cgi/xymoncgimsg.cgi"
+#define MRBIG_HTTP_TIMEOUT_MS 10000
+#define MRBIG_HTTP_RETRIES 3
+
 static char cfgfile[256];
 char mrmachine[256], bind_addr[256] = "0.0.0.0";
 static struct display {
@@ -739,6 +747,106 @@ static int insert_status(char *machine, char *test, char *color)
 	return 1;
 }
 
+void send_update_http(char *p) {
+	SOCKET s;
+	struct sockaddr_in addr;
+	struct hostent *he;
+	int attempt;
+	int ok = 0;
+	int payload_len;
+	int request_size;
+	char *request;
+
+	if (!start_winsock()) return;
+
+	payload_len = (int)strlen(p);
+	request_size = payload_len + 1024;
+	request = big_malloc("send_update_http", request_size);
+
+	for (attempt = 1; attempt <= MRBIG_HTTP_RETRIES && !ok; attempt++) {
+		int sent = 0;
+		int n;
+		int request_len;
+		char response[512];
+		int status = 0;
+		DWORD timeout = MRBIG_HTTP_TIMEOUT_MS;
+
+		s = INVALID_SOCKET;
+		memset(&addr, 0, sizeof addr);
+
+		request[0] = '\0';
+		snprcat(request, request_size, "POST %s HTTP/1.1\r\n", MRBIG_HTTP_PATH);
+		snprcat(request, request_size, "Host: %s:%d\r\n", mrdisplay->in_addr, MRBIG_HTTP_PORT);
+		snprcat(request, request_size, "Content-Type: text/plain\r\n");
+		snprcat(request, request_size, "Connection: close\r\n");
+		snprcat(request, request_size, "Content-Length: %d\r\n\r\n", payload_len);
+		snprcat(request, request_size, "%s", p);
+		request_len = (int)strlen(request);
+
+		s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (s == INVALID_SOCKET) {
+			mrlog("send_update_http: socket failed: %d", WSAGetLastError());
+			continue;
+		}
+
+		setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof timeout);
+		setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof timeout);
+
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons(MRBIG_HTTP_PORT);
+		addr.sin_addr.s_addr = mrdisplay->in_addr.sin_addr.s_addr; // Use the IP address of the display;
+		if (addr.sin_addr.s_addr == INADDR_NONE) {
+			he = gethostbyname(MRBIG_HTTP_HOST);
+			if (!he || !he->h_addr_list || !he->h_addr_list[0]) {
+				mrlog("send_update_http: failed to resolve host '%s'", MRBIG_HTTP_HOST);
+				closesocket(s);
+				continue;
+			}
+			memcpy(&addr.sin_addr, he->h_addr_list[0], sizeof addr.sin_addr);
+		}
+
+		if (connect(s, (struct sockaddr *)&addr, sizeof addr) == SOCKET_ERROR) {
+			mrlog("send_update_http: connect failed (try %d/%d): %d",
+				attempt, MRBIG_HTTP_RETRIES, WSAGetLastError());
+			closesocket(s);
+			continue;
+		}
+
+		while (sent < request_len) {
+			n = send(s, request + sent, request_len - sent, 0);
+			if (n == SOCKET_ERROR) {
+				mrlog("send_update_http: send failed (try %d/%d): %d",
+					attempt, MRBIG_HTTP_RETRIES, WSAGetLastError());
+				break;
+			}
+			sent += n;
+		}
+
+		if (sent == request_len) {
+			n = recv(s, response, sizeof(response)-1, 0);
+			if (n > 0) {
+				response[n] = '\0';
+				if (sscanf(response, "HTTP/%*d.%*d %d", &status) == 1
+					&& status >= 200 && status < 300) {
+					ok = 1;
+				} else {
+					mrlog("send_update_http: non-success response: %.80s", response);
+				}
+			} else {
+				mrlog("send_update_http: no HTTP response (try %d/%d)",
+					attempt, MRBIG_HTTP_RETRIES);
+			}
+		}
+
+		closesocket(s);
+	}
+
+	if (!ok) {
+		mrlog("send_update_http: failed after %d attempts", MRBIG_HTTP_RETRIES);
+	}
+
+	big_free("send_update_http", request);
+}
 /*
 TODO: We can optimise this by parsing out the test name and the colour
 and only send something if the colour has changed for this test
@@ -746,6 +854,10 @@ and only send something if the colour has changed for this test
 as often as we want without putting any more load on the bbd.
 */
 void send_update(char *p) {
+#if MRBIG_USE_HTTP
+	send_update_http(p);
+	return;
+#endif
     struct display *mp;
     struct sockaddr_in my_addr;
     struct linger l_optval;
@@ -879,6 +991,37 @@ cleanup:
     }
 }
 
+void mrsend_http(char *machine, char *test, char *color, char *message)
+{
+    char *p = NULL;
+    int is;
+
+    if (debug > 1) mrlog("mrsend_http(%s, %s, %s, %s)", machine, test, color, message);
+
+    is = insert_status(machine, test, color);
+    if (is == 0) {
+        if (debug) mrlog("mrsend_http: no change, nothing to do");
+        return;
+    }
+
+    /* Prepare the report */
+    p = big_malloc("mrsend_http()", report_size+1);
+    p[0] = '\0';
+    if (mrttl > 0) {
+        if (is == 1)
+            snprcat(p, report_size, "status+%d %s.%s green %s", mrttl, machine, test, message);
+        else
+            snprcat(p, report_size, "status+%d %s.%s %s %s", mrttl, machine, test, color, message);
+    } else {
+        if (is == 1)
+            snprcat(p, report_size, "status %s.%s green %s", machine, test, message);
+        else
+            snprcat(p, report_size, "status %s.%s %s %s", machine, test, color, message);
+    }
+	send_update_http(p);
+    big_free("mrsend_http()", p);
+}
+
 /*	Send a status update. The format is:
     	status [machine],[domain],[tld].[test] [colour] [message]
 	Color may be one of: "green", "yellow", "red", "clear". */
@@ -909,7 +1052,11 @@ void mrsend(char *machine, char *test, char *color, char *message)
 		else
 			snprcat(p, report_size, "status %s.%s %s %s", machine, test, color, message);
 	}
-    send_update(p);
+	#if MRBIG_USE_HTTP
+    send_update_http(p);
+	#else
+	send_update(p);
+	#endif
 	big_free("mrsend()", p);
 }
 
