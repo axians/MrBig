@@ -56,7 +56,7 @@ bios: $(ODIR)/bios.o $(ODIR)/arena.o
 clientversion: $(ODIR)/clientversion.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
-clock: $(ODIR)/clock.o $(ODIR)/arena.o
+clock: $(ODIR)/clock.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 date: $(ODIR)/date.o $(ODIR)/arena.o
