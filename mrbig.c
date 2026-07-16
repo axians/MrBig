@@ -23,6 +23,7 @@ static int mrport, mrsleep, mrloop, mrttl;
 int bootyellow, bootred;
 double dfyellow, dfred;
 int cpuyellow, cpured;
+int ntpskewyellow, ntpskewred;
 int memyellow, memred;
 int debug = 0;
 int is_ext_filter_enabled = 1;
@@ -490,6 +491,8 @@ static void readcfg(void)
 	dfred = 95;
 	cpuyellow = 80;
 	cpured = 90;
+	ntpskewyellow = 60;
+	ntpskewred = 300;
 	memyellow = 100;
 	memred = 100;
 	msgage = 3600;
@@ -536,6 +539,10 @@ static void readcfg(void)
 				cpuyellow = atoi(value);
 			} else if (!strcmp(key, "cpured")) {
 				cpured = atoi(value);
+			} else if (!strcmp(key, "ntpskewyellow")) {
+				ntpskewyellow = atoi(value);
+			} else if (!strcmp(key, "ntpskewred")) {
+				ntpskewred = atoi(value);
 			} else if (!strcmp(key, "dfyellow")) {
 				dfyellow = atof(value);
 			} else if (!strcmp(key, "dfred")) {
@@ -1048,6 +1055,9 @@ void mrbig(void)
 
 		msgs();
 		check_chunks("after msgs test");
+
+		ntp_skew();
+		check_chunks("after ntp_skew test");
 
 		procs();
 		check_chunks("after procs test");
