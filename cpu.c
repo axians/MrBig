@@ -156,6 +156,7 @@ void cpu(void)
 	int n = sizeof b;
 	char r[1000];
 	char up[100];
+	char since[32];
 	char *color = "green";
 	long ut;
 	int um;
@@ -175,6 +176,22 @@ void cpu(void)
 
 	ut = get_uptime();
 	um = ut/60;
+
+	{
+		FILETIME now_ft, boot_ft;
+		ULARGE_INTEGER now_lu, boot_lu;
+		SYSTEMTIME boottime;
+		GetSystemTimeAsFileTime(&now_ft);
+		now_lu.LowPart  = now_ft.dwLowDateTime;
+		now_lu.HighPart = now_ft.dwHighDateTime;
+		boot_lu.QuadPart = now_lu.QuadPart - (ULONGLONG)ut * 10000000ULL;
+		boot_ft.dwLowDateTime  = boot_lu.LowPart;
+		boot_ft.dwHighDateTime = boot_lu.HighPart;
+		FileTimeToSystemTime(&boot_ft, &boottime);
+		snprintf(since, sizeof since, "%u-%02u-%02u %02u:%02u:%02u",
+			boottime.wYear, boottime.wMonth, boottime.wDay,
+			boottime.wHour, boottime.wMinute, boottime.wSecond);
+	}
 	uc = users();
 	load = 0;
 	pc = pscount();
@@ -230,6 +247,9 @@ void cpu(void)
 		"Available pagefile size:       %*.0f bytes\n"
 		"Total virtual memory:          %*.0f bytes\n"
 		"Available virtual memory size: %*.0f bytes\n\n"
+		"Uptime\n"
+		"%s\n"
+		"since: %s\n\n"
 		"Windows version %d.%d\n"
 		"%s %s (%s)\n",
 		now, up, uc, pc, load,
@@ -251,6 +271,8 @@ void cpu(void)
 		WIDTH, (double)statex.ullTotalVirtual,
 		WIDTH, (double)statex.ullAvailVirtual,
 #endif
+		up,
+		since,
 		(int)osvi.dwMajorVersion, (int)osvi.dwMinorVersion,
 		PACKAGE, VERSION, CPU);
 	append_limits(b, n);
