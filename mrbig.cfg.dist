@@ -24,12 +24,17 @@ machine lifebook.qbranch.se
 display 10.0.4.5
 #display 192.168.1.24
 #display 127.0.0.1
+#display example.com:443
+
+#display_scheme tcp
+# display_scheme: tcp (default), http, https
+# display lines are used as targets for tcp/http/https.
+# For http/https, use display HOST:PORT to override the default ports 80/443.
 
 # HTTP transport settings (only used when built with MRBIG_USE_HTTP)
-#http_port 80
-#http_path /xymon-cgi/xymoncgimsg.cgi
-#http_timeout_ms 10000
-#http_retries 3
+#display_http_path /xymon-cgi/xymoncgimsg.cgi
+#display_http_timeout_ms 10000
+#display_http_retries 3
 
 # How often the client runs the main loop (default: 300 seconds)
 #sleep 300

@@ -13,13 +13,32 @@
 #include <time.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <ctype.h>
 #include <inttypes.h>
 #include <tchar.h>
 #include "clientlog/clientlog.h"
 
 /* Never sleep for less than 10 seconds */
 #define SLEEP_MIN (10)
+
+/* Transport defaults and mode values */
+#define MRBIG_HTTP_DEFAULT_PORT 80
+#define MRBIG_HTTPS_DEFAULT_PORT 443
+#define MRBIG_HTTP_DEFAULT_PATH "/xymon-cgi/xymoncgimsg.cgi"
+#define MRBIG_HTTP_DEFAULT_TIMEOUT_MS 10000
+#define MRBIG_HTTP_DEFAULT_RETRIES 3
+#define DISPLAY_SCHEME_TCP 0
+#define DISPLAY_SCHEME_HTTP 1
+#define DISPLAY_SCHEME_HTTPS 2
+
+struct display {
+	struct sockaddr_in in_addr;
+	int s;
+	char *pdata;
+	int remaining;
+	int has_port;
+	char host[256];
+	struct display *next;
+};
 
 /* from readperf.c */
 struct perfcounter {
@@ -61,6 +80,11 @@ extern int cpuyellow, cpured;
 extern int ntpskewyellow, ntpskewred;
 extern int report_size;
 extern int debug;
+extern struct display *mrdisplay;
+extern int http_timeout_ms;
+extern int http_retries;
+extern char http_path[256];
+extern int display_scheme;
 extern int start_winsock(void);
 extern void stop_winsock(void);
 
@@ -95,6 +119,8 @@ extern void clear_cfg(void);
 extern void add_cfg(char *name, char *cfg);
 extern int get_cfg(char *name, char *b, size_t n, int line);
 extern void read_cfg(char *cat, char *filename);
+extern void send_update_http(char *p);
+extern void send_update_tcp(char *p);
 
 /* snarfed from openbsd */
 extern size_t strlcat(char *, const char *, size_t);

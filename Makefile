@@ -1,4 +1,3 @@
-
 PACKAGE=MrBig
 
 VERSION=0.26.7-rc1
@@ -17,13 +16,13 @@ CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
 SRCS=cfg.c cpu.c disk.c memory.c msgs.c ntpskew.c procs.c svcs.c mrbig.c \
 	service.c readperf.c readlog.c ext_test.c \
-	strlcpy.c disphelper.c wmi.c
+	strlcpy.c disphelper.c wmi.c transport.c
 HDRS=mrbig.h disphelper.h
 OBJS=cfg.o cpu.o disk.o memory.o msgs.o ntpskew.o procs.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o \
-	strlcpy.o disphelper.o wmi.o
+	strlcpy.o disphelper.o wmi.o transport.o
 NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o ntpskew.o procsnt.o svcs.o mrbig.o \
-	service.o readperf.o readlog.o ext_test.o
+	service.o readperf.o readlog.o ext_test.o transport.o
 CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o cpuinfo.o bios.o date.o diskinfo.o domain.o \
 	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o registry.o runningservices.o tcpconnections.o \
 	who.o winmemory.o winports.o winroute.o winuptime.o arena.o utils.o clientlog.o
@@ -96,18 +95,18 @@ mrwmi:
 	$(MAKE) -C X64 mrwmi.exe
 
 mrwmi.exe: $(OBJS) wmi.o disphelper.o
-	$(CC) -o mrwmi.exe $(OBJS) wmi.o disphelper.o -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -lcrypt32 -lwevtapi -lpdh -lwtsapi32
+	$(CC) -o mrwmi.exe $(OBJS) wmi.o disphelper.o -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lwinhttp
 
 mrbig.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig.exe"
-	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32 -lsecur32
+	$(CC) -o mrbig.exe $(OBJS) $(CLIENTLOGOBJS_32)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32 -lsecur32 -lwinhttp
 
 mrbig64.exe: $(OBJS) clientlog.o $(VER_RES)
 	@echo "Building mrbig64.exe"
-	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32 -lsecur32
+	$(CC) -o mrbig64.exe $(OBJS) $(CLIENTLOGOBJS_64)  $(VER_RES) -lws2_32 -lpsapi -lole32 -loleaut32 -luuid -liphlpapi -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lnetapi32 -lsecur32 -lwinhttp
 
 mrbignt.exe: $(NTOBJS)
-	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi
+	$(CC) -o mrbignt.exe $(NTOBJS) -lws2_32 -lpsapi -lwinhttp
 
 clientlog.o:
 	$(MAKE) -C ../clientlog objectfile PACKAGE="$(PACKAGE)" VERSION="$(FILEVER_STR)"

@@ -1,28 +1,15 @@
 #include "mrbig.h"
 #include "clientlog/clientlog.h"
 #include <stdio.h>
+#include <ctype.h>
 
 #define MEMSIZE 4
 #define PATTERN_SIZE (sizeof big_pattern)
 #define CHUNKS_MAX 10000
 
-/* Hardcoded HTTP transport settings for now. */
-#define MRBIG_USE_HTTP 1
-#define MRBIG_HTTP_DEFAULT_PORT 80
-#define MRBIG_HTTP_DEFAULT_PATH "/xymon-cgi/xymoncgimsg.cgi"
-#define MRBIG_HTTP_DEFAULT_TIMEOUT_MS 10000
-#define MRBIG_HTTP_DEFAULT_RETRIES 3
-
 static char cfgfile[256];
 char mrmachine[256], bind_addr[256] = "0.0.0.0";
-static struct display {
-	struct sockaddr_in in_addr;
-	int s;
-	char* pdata;
-	int remaining;
-	char host[256];
-	struct display *next;
-} *mrdisplay;
+struct display *mrdisplay;
 char cfgdir[256];
 char pickupdir[256];
 char now[1024];
@@ -40,10 +27,10 @@ int msgage;
 int memsize = MEMSIZE;
 int standalone = 0;
 int report_size = 16384;
-static int http_port = MRBIG_HTTP_DEFAULT_PORT;
-static int http_timeout_ms = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
-static int http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
-static char http_path[256] = MRBIG_HTTP_DEFAULT_PATH;
+int http_timeout_ms = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
+int http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
+char http_path[256] = MRBIG_HTTP_DEFAULT_PATH;
+int display_scheme = DISPLAY_SCHEME_TCP;
 
 /* nosy memory management */
 static int debug_memory = 0;
@@ -93,7 +80,7 @@ void mrlog(char *fmt, ...)
 }
 
 #if 1
-// Use this for logs that need to be written before there is a logfp
+/* Use this for logs that need to be written before there is a logfp */
 void startup_log(char *fmt, ...)
 {
 	FILE *fp;
@@ -192,9 +179,7 @@ static void store_chunk(void *p, size_t n, char *cl)
 				p, cl, (long)n, i);
 	chunks[i].p = p;
 	chunks[i].n = n;
-mrlog("In store_chunk: i = %d", i);
 	strlcpy(chunks[i].cl, cl, 20);
-mrlog("In store_chunk: i = %d", i);
 	memcpy(p+n-PATTERN_SIZE, big_pattern, PATTERN_SIZE);
 }
 
@@ -262,7 +247,7 @@ void *big_realloc(char *p, void *q, size_t n)
 	a = realloc(q, m);
 
 	if (debug > 2) {
-		mrlog("Reallocating %ld bytes to new address %p, on behalf of %s",	
+		mrlog("Reallocating %ld bytes to new address %p, on behalf of %s",
 			(long)m, a, p);
 	}
 
@@ -510,10 +495,10 @@ static void readcfg(void)
 	msgage = 3600;
 	memsize = MEMSIZE;
 	pickupdir[0] = '\0';
-	http_port = MRBIG_HTTP_DEFAULT_PORT;
 	http_timeout_ms = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
 	http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
 	strlcpy(http_path, MRBIG_HTTP_DEFAULT_PATH, sizeof http_path);
+	display_scheme = DISPLAY_SCHEME_TCP;
 	if (logfp) big_fclose("readcfg:logfile", logfp);
 	logfp = NULL;
 
@@ -531,14 +516,12 @@ static void readcfg(void)
 				strlcpy(mp->host, value, sizeof mp->host);
 				p = strchr(mp->host, ':');
 				if (p) {
+					mp->has_port = 1;
 					*p++ = '\0';
 					mp->in_addr.sin_port = htons(atoi(p));
 				} else {
-				#if MRBIG_USE_HTTP
-					mp->in_addr.sin_port = htons(http_port);
-				#else
+					mp->has_port = 0;
 					mp->in_addr.sin_port = htons(mrport);
-				#endif
 				}
 				mp->in_addr.sin_addr.s_addr = inet_addr(mp->host);
 				mp->next = mrdisplay;
@@ -587,23 +570,22 @@ static void readcfg(void)
 				insert_grace(test, grace);
 			} else if (!strcmp(key, "report_size")) {
 				report_size = atoi(value);
-			} else if (!strcmp(key, "http_port")) {
-				http_port = atoi(value);
-				if (http_port < 1 || http_port > 65535) {
-					http_port = MRBIG_HTTP_DEFAULT_PORT;
-				}
-			} else if (!strcmp(key, "http_path")) {
+			} else if (!strcmp(key, "display_http_path")) {
 				strlcpy(http_path, value, sizeof http_path);
-			} else if (!strcmp(key, "http_timeout_ms")) {
+			} else if (!strcmp(key, "display_http_timeout_ms")) {
 				http_timeout_ms = atoi(value);
 				if (http_timeout_ms <= 0) {
 					http_timeout_ms = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
 				}
-			} else if (!strcmp(key, "http_retries")) {
+			} else if (!strcmp(key, "display_http_retries")) {
 				http_retries = atoi(value);
 				if (http_retries < 1) {
 					http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
 				}
+			} else if (!strcmp(key, "display_scheme")) {
+				if (!strcmp(value, "https")) display_scheme = DISPLAY_SCHEME_HTTPS;
+				else if (!strcmp(value, "http")) display_scheme = DISPLAY_SCHEME_HTTP;
+				else display_scheme = DISPLAY_SCHEME_TCP;
 			} else if (!strcmp(key, "option")) {
 				insert_option(value);
 			} else if (!strcmp(key, "memsize")) {
@@ -777,272 +759,8 @@ static int insert_status(char *machine, char *test, char *color)
 	return 1;
 }
 
-void send_update_http(char *p) {
-	struct display *mp;
-	SOCKET s;
-	struct sockaddr_in addr;
-	struct hostent *he;
-	int attempt;
-	int ok;
-	int all_ok = 1;
-	int payload_len;
-	int request_size;
-	char *request;
-
-	if (!start_winsock()) return;
-
-	if (!mrdisplay) {
-		mrlog("send_update_http: no display configured");
-		return;
-	}
-
-	payload_len = (int)strlen(p);
-	request_size = payload_len + 1024;
-	request = big_malloc("send_update_http", request_size);
-
-	for (mp = mrdisplay; mp; mp = mp->next) {
-		int port = ntohs(mp->in_addr.sin_port);
-		const char *host_header;
-
-		if (port < 1 || port > 65535) port = http_port;
-		host_header = mp->host[0] ? mp->host : inet_ntoa(mp->in_addr.sin_addr);
-		ok = 0;
-
-		for (attempt = 1; attempt <= http_retries && !ok; attempt++) {
-			int sent = 0;
-			int n;
-			int request_len;
-			char response[512];
-			int status = 0;
-			DWORD timeout = (DWORD)http_timeout_ms;
-
-			s = INVALID_SOCKET;
-			memset(&addr, 0, sizeof addr);
-			mrlog("HTTP attempt %d/%d: sending %d bytes to %s:%d",
-				attempt, http_retries, payload_len, host_header, port);
-
-			request[0] = '\0';
-			snprcat(request, request_size, "POST %s HTTP/1.1\r\n", http_path);
-			snprcat(request, request_size, "Host: %s:%d\r\n", host_header, port);
-			snprcat(request, request_size, "Content-Type: text/plain\r\n");
-			snprcat(request, request_size, "Connection: close\r\n");
-			snprcat(request, request_size, "Content-Length: %d\r\n\r\n", payload_len);
-			snprcat(request, request_size, "%s", p);
-			request_len = (int)strlen(request);
-
-			s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if (s == INVALID_SOCKET) {
-				mrlog("send_update_http: socket failed: %d", WSAGetLastError());
-				continue;
-			}
-
-			setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof timeout);
-			setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof timeout);
-
-			addr.sin_family = AF_INET;
-			addr.sin_port = htons(port);
-			addr.sin_addr.s_addr = mp->in_addr.sin_addr.s_addr;
-			if (addr.sin_addr.s_addr == INADDR_NONE) {
-				he = gethostbyname(mp->host);
-				if (!he || !he->h_addr_list || !he->h_addr_list[0]) {
-					mrlog("send_update_http: failed to resolve host '%s'", mp->host);
-					closesocket(s);
-					continue;
-				}
-				memcpy(&addr.sin_addr, he->h_addr_list[0], sizeof addr.sin_addr);
-			}
-
-			if (connect(s, (struct sockaddr *)&addr, sizeof addr) == SOCKET_ERROR) {
-				mrlog("send_update_http: connect failed (try %d/%d): %d",
-					attempt, http_retries, WSAGetLastError());
-				closesocket(s);
-				continue;
-			}
-
-			while (sent < request_len) {
-				n = send(s, request + sent, request_len - sent, 0);
-				if (n == SOCKET_ERROR) {
-					mrlog("send_update_http: send failed (try %d/%d): %d",
-						attempt, http_retries, WSAGetLastError());
-					break;
-				}
-				sent += n;
-			}
-
-			if (sent == request_len) {
-				n = recv(s, response, sizeof(response)-1, 0);
-				if (n > 0) {
-					response[n] = '\0';
-					if (sscanf(response, "HTTP/%*d.%*d %d", &status) == 1
-						&& status >= 200 && status < 300) {
-						ok = 1;
-					} else {
-						mrlog("send_update_http: non-success response: %.80s", response);
-					}
-				} else {
-					mrlog("send_update_http: no HTTP response (try %d/%d)",
-						attempt, http_retries);
-				}
-			}
-
-			closesocket(s);
-		}
-
-		if (!ok) {
-			all_ok = 0;
-			mrlog("send_update_http: failed for %s:%d after %d attempts",
-				host_header, port, http_retries);
-		}
-	}
-
-	if (!all_ok) {
-		mrlog("send_update_http: one or more display targets failed");
-	}
-
-	big_free("send_update_http", request);
-}
-/*
-TODO: We can optimise this by parsing out the test name and the colour
-and only send something if the colour has changed for this test
-*or* the bbsleep time is exceeded. Then we can run the main loop
-as often as we want without putting any more load on the bbd.
-*/
 void send_update(char *p) {
-#if MRBIG_USE_HTTP
 	send_update_http(p);
-	return;
-#endif
-    struct display *mp;
-    struct sockaddr_in my_addr;
-    struct linger l_optval;
-    unsigned long nonblock;
-
-    if (!start_winsock()) return;
-
-    for (mp = mrdisplay; mp; mp = mp->next) {
-        mp->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (mp->s == -1) {
-            mrlog("send_update: socket failed: %d", WSAGetLastError());
-            continue;
-        }
-
-        memset(&my_addr, 0, sizeof(my_addr));
-        my_addr.sin_family = AF_INET;
-        my_addr.sin_port = 0;
-        my_addr.sin_addr.s_addr = inet_addr(bind_addr);
-        if (bind(mp->s, (struct sockaddr *)&my_addr, sizeof my_addr) < 0) {
-            mrlog("send_update: bind(%s) failed: [%d]", bind_addr, WSAGetLastError());
-            closesocket(mp->s);
-            mp->s = -1;
-            continue;
-        }
-
-        l_optval.l_onoff = 1;
-        l_optval.l_linger = 5;
-        nonblock = 1;
-        if (ioctlsocket(mp->s, FIONBIO, &nonblock) == SOCKET_ERROR) {
-            mrlog("send_update: ioctlsocket failed: %d", WSAGetLastError());
-            closesocket(mp->s);
-            mp->s = -1;
-            continue;
-        }
-        if (setsockopt(mp->s, SOL_SOCKET, SO_LINGER, (const char *)&l_optval, sizeof(l_optval)) == SOCKET_ERROR) {
-            mrlog("send_update: setsockopt failed: %d", WSAGetLastError());
-            closesocket(mp->s);
-            mp->s = -1;
-            continue;
-        }
-
-        if (debug) mrlog("Using address %s, port %d\n",
-                         inet_ntoa(mp->in_addr.sin_addr),
-                         ntohs(mp->in_addr.sin_port));
-        if (connect(mp->s, (struct sockaddr *)&mp->in_addr, sizeof(mp->in_addr)) == SOCKET_ERROR) {
-            if (WSAGetLastError() != WSAEWOULDBLOCK) {
-                mrlog("send_update: connect: %d", WSAGetLastError());
-                l_optval.l_onoff = 0;
-                l_optval.l_linger = 0;
-                setsockopt(mp->s, SOL_SOCKET, SO_LINGER, (const char *)&l_optval, sizeof(l_optval));
-                closesocket(mp->s);
-                mp->s = -1;
-                continue;
-            }
-        }
-
-        mp->pdata = p;
-        mp->remaining = strlen(p);
-    }
-
-    time_t start_time = time(NULL);
-
-    for (;;) {
-        struct timeval timeo;
-        fd_set wfds;
-        int len;
-        int tot_remaining;
-        timeo.tv_sec = 1;
-        timeo.tv_usec = 0;
-        FD_ZERO(&wfds);
-        tot_remaining = 0;
-        for (mp = mrdisplay; mp; mp = mp->next) {
-            if (mp->s != -1) {
-                if (mp->remaining > 0) {
-                    FD_SET(mp->s, &wfds);
-                    tot_remaining += mp->remaining;
-                }
-            }
-        }
-        if (tot_remaining == 0) {
-            /* all data sent to displays */
-            goto cleanup;
-        }
-        if (time(NULL) > start_time + 10 || time(NULL) < start_time) {
-            mrlog("send_update: send loop timed out");
-            /* this should not take more than 10 seconds. Network problem, so bail out */
-            goto cleanup;
-        }
-        select(255 /* ignored on winsock */, NULL, &wfds, NULL, &timeo);
-        for (mp = mrdisplay; mp; mp = mp->next) {
-            if (mp->s != -1) {
-                if (mp->remaining > 0) {
-                    len = send(mp->s, mp->pdata, mp->remaining, 0);
-                    if (len == SOCKET_ERROR) {
-                        continue;
-                    }
-                    mp->pdata += len;
-                    mp->remaining -= len;
-                    if (mp->remaining == 0) {
-                        shutdown(mp->s, SD_BOTH);
-                    }
-                }
-            }
-        }
-    }
-
-cleanup:
-
-    /* initiate socket shutdowns */
-    for (mp = mrdisplay; mp; mp = mp->next) {
-        if (mp->s != -1) {
-            shutdown(mp->s, SD_BOTH);
-        }
-    }
-    /* gracefully terminate sockets, finally applying force */
-    for (mp = mrdisplay; mp; mp = mp->next) {
-        int i;
-        if (mp->s != -1) {
-            for (i = 0; i < 10; i++) {
-                if (closesocket(mp->s) == WSAEWOULDBLOCK) {
-                    Sleep(1000); /* wait for all data to be sent */
-                }
-            }
-            /* force the socket shut */
-            l_optval.l_onoff = 0;
-            l_optval.l_linger = 0;
-            setsockopt(mp->s, SOL_SOCKET, SO_LINGER, (const char *)&l_optval, sizeof(l_optval));
-            closesocket(mp->s);
-            mp->s = -1;
-        }
-    }
 }
 
 void mrsend_http(char *machine, char *test, char *color, char *message)
@@ -1106,11 +824,7 @@ void mrsend(char *machine, char *test, char *color, char *message)
 		else
 			snprcat(p, report_size, "status %s.%s %s %s", machine, test, color, message);
 	}
-	#if MRBIG_USE_HTTP
-    send_update_http(p);
-	#else
 	send_update(p);
-	#endif
 	big_free("mrsend()", p);
 }
 

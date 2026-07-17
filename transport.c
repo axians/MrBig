@@ -1,0 +1,514 @@
+#include "mrbig.h"
+#include <winhttp.h>
+
+static int to_wstr(const char *src, wchar_t *dst, size_t dst_count)
+{
+	int n;
+
+	if (!src || !dst || dst_count == 0) return 0;
+	n = MultiByteToWideChar(CP_ACP, 0, src, -1, dst, (int)dst_count);
+	if (n <= 0) return 0;
+	return 1;
+}
+
+static void log_winhttp_error_detail(const char *where, DWORD err)
+{
+	const char *hint = "unknown";
+
+	switch (err) {
+	case ERROR_WINHTTP_TIMEOUT:
+		hint = "timeout";
+		break;
+	case ERROR_WINHTTP_CANNOT_CONNECT:
+		hint = "cannot connect";
+		break;
+	case ERROR_WINHTTP_CONNECTION_ERROR:
+		hint = "connection error";
+		break;
+	case ERROR_WINHTTP_NAME_NOT_RESOLVED:
+		hint = "dns name not resolved";
+		break;
+	case ERROR_WINHTTP_SECURE_FAILURE:
+		hint = "secure channel failure";
+		break;
+	case ERROR_WINHTTP_SECURE_CERT_DATE_INVALID:
+		hint = "tls cert date invalid/expired";
+		break;
+	case ERROR_WINHTTP_SECURE_CERT_CN_INVALID:
+		hint = "tls cert hostname mismatch";
+		break;
+	case ERROR_WINHTTP_SECURE_INVALID_CA:
+		hint = "tls cert not trusted (invalid ca)";
+		break;
+	case ERROR_WINHTTP_SECURE_CERT_REVOKED:
+		hint = "tls cert revoked";
+		break;
+	case ERROR_WINHTTP_SECURE_CERT_WRONG_USAGE:
+		hint = "tls cert wrong usage";
+		break;
+	case ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED:
+		hint = "client certificate required";
+		break;
+	case ERROR_WINHTTP_INVALID_SERVER_RESPONSE:
+		hint = "invalid server response";
+		break;
+	case ERROR_WINHTTP_RESEND_REQUEST:
+		hint = "request must be resent";
+		break;
+	case ERROR_WINHTTP_LOGIN_FAILURE:
+		hint = "proxy/server authentication failed";
+		break;
+	default:
+		break;
+	}
+
+	mrlog("send_update_http: %s failed: %lu (%s)", where, err, hint);
+}
+
+struct http_target {
+	int port;
+	const char *host;
+	unsigned long addr_s_addr;
+};
+
+static int fill_http_target(struct display *mp, int default_port,
+	struct http_target *target)
+{
+	if (mp) {
+		target->port = mp->has_port ? ntohs(mp->in_addr.sin_port) : default_port;
+		target->host = mp->host[0] ? mp->host : inet_ntoa(mp->in_addr.sin_addr);
+		target->addr_s_addr = mp->in_addr.sin_addr.s_addr;
+	} else {
+		return 0;
+	}
+
+	if (target->port < 1 || target->port > 65535) target->port = default_port;
+	mrlog("fill_http_target: using target %s:%d", target->host, target->port);
+	return 1;
+}
+
+static int send_https_target(const struct http_target *target, const char *payload,
+	int payload_len)
+{
+	wchar_t whost[256];
+	wchar_t wpath[256];
+	HINTERNET hSession;
+	int timeout = http_timeout_ms;
+	int attempt;
+
+	if (!to_wstr(target->host, whost, sizeof whost / sizeof whost[0])
+		|| !to_wstr(http_path, wpath, sizeof wpath / sizeof wpath[0])) {
+		mrlog("send_update_http: failed string conversion for HTTPS target");
+		return 0;
+	}
+
+	hSession = WinHttpOpen(L"MrBig/1.0",
+		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+		WINHTTP_NO_PROXY_NAME,
+		WINHTTP_NO_PROXY_BYPASS,
+		0);
+	if (!hSession) {
+		mrlog("send_update_http: WinHttpOpen failed: %lu", GetLastError());
+		return 0;
+	}
+
+	if (timeout <= 0) timeout = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
+	WinHttpSetTimeouts(hSession, timeout, timeout, timeout, timeout);
+
+	for (attempt = 1; attempt <= http_retries; attempt++) {
+		HINTERNET hConnect;
+		HINTERNET hRequest;
+		DWORD status = 0;
+		DWORD status_len = sizeof status;
+		DWORD err;
+
+		mrlog("HTTPS attempt %d/%d: sending %d bytes to %s:%d",
+			attempt, http_retries, payload_len, target->host, target->port);
+
+		hConnect = WinHttpConnect(hSession, whost, (INTERNET_PORT)target->port, 0);
+		if (!hConnect) {
+			err = GetLastError();
+			mrlog("send_update_http: WinHttpConnect failed (try %d/%d)",
+				attempt, http_retries);
+			log_winhttp_error_detail("WinHttpConnect", err);
+			continue;
+		}
+
+		hRequest = WinHttpOpenRequest(hConnect,
+			L"POST",
+			wpath,
+			NULL,
+			WINHTTP_NO_REFERER,
+			WINHTTP_DEFAULT_ACCEPT_TYPES,
+			WINHTTP_FLAG_SECURE);
+		if (!hRequest) {
+			err = GetLastError();
+			mrlog("send_update_http: WinHttpOpenRequest failed (try %d/%d)",
+				attempt, http_retries);
+			log_winhttp_error_detail("WinHttpOpenRequest", err);
+			WinHttpCloseHandle(hConnect);
+			continue;
+		}
+
+		if (!WinHttpSendRequest(hRequest,
+			L"Content-Type: text/plain\r\n",
+			-1,
+			(LPVOID)payload,
+			(DWORD)payload_len,
+			(DWORD)payload_len,
+			0)) {
+			err = GetLastError();
+			mrlog("send_update_http: WinHttpSendRequest failed (try %d/%d)",
+				attempt, http_retries);
+			log_winhttp_error_detail("WinHttpSendRequest", err);
+			WinHttpCloseHandle(hRequest);
+			WinHttpCloseHandle(hConnect);
+			continue;
+		}
+
+		if (!WinHttpReceiveResponse(hRequest, NULL)) {
+			err = GetLastError();
+			mrlog("send_update_http: WinHttpReceiveResponse failed (try %d/%d)",
+				attempt, http_retries);
+			log_winhttp_error_detail("WinHttpReceiveResponse", err);
+			WinHttpCloseHandle(hRequest);
+			WinHttpCloseHandle(hConnect);
+			continue;
+		}
+
+		if (!WinHttpQueryHeaders(hRequest,
+			WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+			WINHTTP_HEADER_NAME_BY_INDEX,
+			&status,
+			&status_len,
+			WINHTTP_NO_HEADER_INDEX)) {
+			err = GetLastError();
+			mrlog("send_update_http: WinHttpQueryHeaders failed (try %d/%d)",
+				attempt, http_retries);
+			log_winhttp_error_detail("WinHttpQueryHeaders", err);
+			WinHttpCloseHandle(hRequest);
+			WinHttpCloseHandle(hConnect);
+			continue;
+		}
+
+		if (status < 200 || status >= 300) {
+			mrlog("send_update_http: HTTPS non-success status %lu (try %d/%d)",
+				(unsigned long)status, attempt, http_retries);
+			WinHttpCloseHandle(hRequest);
+			WinHttpCloseHandle(hConnect);
+			continue;
+		}
+
+		WinHttpCloseHandle(hRequest);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return 1;
+	}
+
+	WinHttpCloseHandle(hSession);
+	return 0;
+}
+
+static int send_http_target(const struct http_target *target, const char *payload,
+	int payload_len, char *request, int request_size)
+{
+	SOCKET s;
+	struct sockaddr_in addr;
+	struct hostent *he;
+	int attempt;
+
+	for (attempt = 1; attempt <= http_retries; attempt++) {
+		int sent = 0;
+		int n;
+		int request_len;
+		char response[512];
+		int status = 0;
+		DWORD timeout = (DWORD)http_timeout_ms;
+
+		s = INVALID_SOCKET;
+		memset(&addr, 0, sizeof addr);
+		mrlog("HTTP attempt %d/%d: sending %d bytes to %s:%d",
+			attempt, http_retries, payload_len, target->host, target->port);
+
+		request[0] = '\0';
+		snprcat(request, request_size, "POST %s HTTP/1.1\r\n", http_path);
+		snprcat(request, request_size, "Host: %s:%d\r\n", target->host, target->port);
+		snprcat(request, request_size, "Content-Type: text/plain\r\n");
+		snprcat(request, request_size, "Connection: close\r\n");
+		snprcat(request, request_size, "Content-Length: %d\r\n\r\n", payload_len);
+		snprcat(request, request_size, "%s", payload);
+		request_len = (int)strlen(request);
+
+		s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (s == INVALID_SOCKET) {
+			mrlog("send_update_http: socket failed: %d", WSAGetLastError());
+			continue;
+		}
+
+		setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof timeout);
+		setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof timeout);
+
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons(target->port);
+		addr.sin_addr.s_addr = target->addr_s_addr;
+		if (addr.sin_addr.s_addr == INADDR_NONE) {
+			he = gethostbyname(target->host);
+			if (!he || !he->h_addr_list || !he->h_addr_list[0]) {
+				mrlog("send_update_http: failed to resolve host '%s'", target->host);
+				closesocket(s);
+				continue;
+			}
+			memcpy(&addr.sin_addr, he->h_addr_list[0], sizeof addr.sin_addr);
+		}
+
+		if (connect(s, (struct sockaddr *)&addr, sizeof addr) == SOCKET_ERROR) {
+			mrlog("send_update_http: connect failed (try %d/%d): %d",
+				attempt, http_retries, WSAGetLastError());
+			closesocket(s);
+			continue;
+		}
+
+		while (sent < request_len) {
+			n = send(s, request + sent, request_len - sent, 0);
+			if (n == SOCKET_ERROR) {
+				mrlog("send_update_http: send failed (try %d/%d): %d",
+					attempt, http_retries, WSAGetLastError());
+				break;
+			}
+			sent += n;
+		}
+
+		if (sent == request_len) {
+			n = recv(s, response, sizeof(response)-1, 0);
+			if (n > 0) {
+				response[n] = '\0';
+				if (sscanf(response, "HTTP/%*d.%*d %d", &status) == 1
+					&& status >= 200 && status < 300) {
+					closesocket(s);
+					return 1;
+				}
+				mrlog("send_update_http: non-success response: %.80s", response);
+			} else {
+				mrlog("send_update_http: no HTTP response (try %d/%d)",
+					attempt, http_retries);
+			}
+		}
+
+		closesocket(s);
+	}
+
+	return 0;
+}
+
+static int send_update_http_route(char *p, int use_https)
+{
+	struct display *mp;
+	int payload_len;
+	int request_size;
+	char *request;
+	int default_port;
+	int all_ok = 1;
+	int have_target = 0;
+
+	if (!start_winsock()) return 0;
+
+	payload_len = (int)strlen(p);
+	request_size = payload_len + 1024;
+	request = big_malloc("send_update_http_route", request_size);
+	default_port = use_https ? MRBIG_HTTPS_DEFAULT_PORT : MRBIG_HTTP_DEFAULT_PORT;
+
+	for (mp = mrdisplay; mp; mp = mp->next) {
+		struct http_target target;
+		int ok;
+
+		have_target = 1;
+		if (!fill_http_target(mp, default_port, &target)) {
+			all_ok = 0;
+			continue;
+		}
+		ok = use_https
+			? send_https_target(&target, p, payload_len)
+			: send_http_target(&target, p, payload_len, request, request_size);
+		if (!ok) {
+			all_ok = 0;
+			mrlog("send_update_http_route: failed for %s:%d after %d attempts",
+				target.host, target.port, http_retries);
+		}
+	}
+
+	if (!have_target) {
+		mrlog("send_update_http_route: no HTTP(S) target configured");
+		all_ok = 0;
+	}
+
+	if (all_ok) mrlog("send_update_http_route: sent update to all displays");
+	else mrlog("send_update_http_route: failed to send update to one or more displays");
+	big_free("send_update_http_route", request);
+	return all_ok;
+}
+
+void send_update_http(char *p)
+{
+	if (display_scheme == DISPLAY_SCHEME_HTTPS) {
+		if (!send_update_http_route(p, 1)) {
+			mrlog("send_update_http: HTTPS route failed");
+		}
+		return;
+	}
+
+	if (display_scheme == DISPLAY_SCHEME_HTTP) {
+		if (!send_update_http_route(p, 0)) {
+			mrlog("send_update_http: HTTP route failed");
+		}
+		return;
+	}
+
+	mrlog("send_update_http: display_scheme=tcp, using TCP route");
+	send_update_tcp(p);
+}
+
+void send_update_tcp(char *p)
+{
+	struct display *mp;
+	struct sockaddr_in my_addr;
+	struct hostent *he;
+	struct linger l_optval;
+	unsigned long nonblock;
+
+	if (!start_winsock()) return;
+
+	for (mp = mrdisplay; mp; mp = mp->next) {
+		mp->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (mp->s == -1) {
+			mrlog("send_update: socket failed: %d", WSAGetLastError());
+			continue;
+		}
+
+		memset(&my_addr, 0, sizeof(my_addr));
+		my_addr.sin_family = AF_INET;
+		my_addr.sin_port = 0;
+		my_addr.sin_addr.s_addr = inet_addr(bind_addr);
+		if (bind(mp->s, (struct sockaddr *)&my_addr, sizeof my_addr) < 0) {
+			mrlog("send_update: bind(%s) failed: [%d]", bind_addr, WSAGetLastError());
+			closesocket(mp->s);
+			mp->s = -1;
+			continue;
+		}
+
+		l_optval.l_onoff = 1;
+		l_optval.l_linger = 5;
+		nonblock = 1;
+		if (ioctlsocket(mp->s, FIONBIO, &nonblock) == SOCKET_ERROR) {
+			mrlog("send_update: ioctlsocket failed: %d", WSAGetLastError());
+			closesocket(mp->s);
+			mp->s = -1;
+			continue;
+		}
+		if (setsockopt(mp->s, SOL_SOCKET, SO_LINGER, (const char *)&l_optval, sizeof(l_optval)) == SOCKET_ERROR) {
+			mrlog("send_update: setsockopt failed: %d", WSAGetLastError());
+			closesocket(mp->s);
+			mp->s = -1;
+			continue;
+		}
+
+		if (debug) mrlog("Using address %s, port %d\n",
+				 inet_ntoa(mp->in_addr.sin_addr),
+				 ntohs(mp->in_addr.sin_port));
+		if (mp->in_addr.sin_addr.s_addr == INADDR_NONE) {
+			he = gethostbyname(mp->host);
+			if (!he || !he->h_addr_list || !he->h_addr_list[0]) {
+				mrlog("send_update: failed to resolve host '%s'", mp->host);
+				closesocket(mp->s);
+				mp->s = -1;
+				continue;
+			}
+			memcpy(&mp->in_addr.sin_addr, he->h_addr_list[0], sizeof mp->in_addr.sin_addr);
+		}
+		if (connect(mp->s, (struct sockaddr *)&mp->in_addr, sizeof(mp->in_addr)) == SOCKET_ERROR) {
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
+				mrlog("send_update: connect: %d", WSAGetLastError());
+				l_optval.l_onoff = 0;
+				l_optval.l_linger = 0;
+				setsockopt(mp->s, SOL_SOCKET, SO_LINGER, (const char *)&l_optval, sizeof(l_optval));
+				closesocket(mp->s);
+				mp->s = -1;
+				continue;
+			}
+		}
+
+		mp->pdata = p;
+		mp->remaining = strlen(p);
+	}
+
+	time_t start_time = time(NULL);
+
+	for (;;) {
+		struct timeval timeo;
+		fd_set wfds;
+		int len;
+		int tot_remaining;
+		timeo.tv_sec = 1;
+		timeo.tv_usec = 0;
+		FD_ZERO(&wfds);
+		tot_remaining = 0;
+		for (mp = mrdisplay; mp; mp = mp->next) {
+			if (mp->s != -1) {
+				if (mp->remaining > 0) {
+					FD_SET(mp->s, &wfds);
+					tot_remaining += mp->remaining;
+				}
+			}
+		}
+		if (tot_remaining == 0) {
+			/* all data sent to displays */
+			goto cleanup;
+		}
+		if (time(NULL) > start_time + 10 || time(NULL) < start_time) {
+			mrlog("send_update: send loop timed out");
+			/* this should not take more than 10 seconds. Network problem, so bail out */
+			goto cleanup;
+		}
+		select(255 /* ignored on winsock */, NULL, &wfds, NULL, &timeo);
+		for (mp = mrdisplay; mp; mp = mp->next) {
+			if (mp->s != -1) {
+				if (mp->remaining > 0) {
+					len = send(mp->s, mp->pdata, mp->remaining, 0);
+					if (len == SOCKET_ERROR) {
+						continue;
+					}
+					mp->pdata += len;
+					mp->remaining -= len;
+					if (mp->remaining == 0) {
+						shutdown(mp->s, SD_BOTH);
+					}
+				}
+			}
+		}
+	}
+
+cleanup:
+
+	/* initiate socket shutdowns */
+	for (mp = mrdisplay; mp; mp = mp->next) {
+		if (mp->s != -1) {
+			shutdown(mp->s, SD_BOTH);
+		}
+	}
+	/* gracefully terminate sockets, finally applying force */
+	for (mp = mrdisplay; mp; mp = mp->next) {
+		int i;
+		if (mp->s != -1) {
+			for (i = 0; i < 10; i++) {
+				if (closesocket(mp->s) == WSAEWOULDBLOCK) {
+					Sleep(1000); /* wait for all data to be sent */
+				}
+			}
+			/* force the socket shut */
+			l_optval.l_onoff = 0;
+			l_optval.l_linger = 0;
+			setsockopt(mp->s, SOL_SOCKET, SO_LINGER, (const char *)&l_optval, sizeof(l_optval));
+			closesocket(mp->s);
+			mp->s = -1;
+		}
+	}
+}
