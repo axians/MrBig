@@ -26,6 +26,10 @@ Available PageFile size:          93876224 bytes (90.00MB)
 Total Virtual memory size:      2147352576 bytes (2.00GB)
 Available Virtual memory size:  2121302016 bytes (1.98GB)
 
+Uptime
+42 days
+since: 1970-01-01 00:00:00
+
 Most active processes
 00.27%	csrss (0x1a [26])
 00.14%	bbnt (0x31 [49])
