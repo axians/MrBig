@@ -19,9 +19,17 @@ machine lifebook.qbranch.se
 
 # IP address of the display (default: 127.0.0.1)
 # There can be more than one display line
+# With HTTP transport enabled, this host (or host:port) is also used as the
+# HTTP target and Host header value.
 display 10.0.4.5
 #display 192.168.1.24
 #display 127.0.0.1
+
+# HTTP transport settings (only used when built with MRBIG_USE_HTTP)
+#http_port 80
+#http_path /xymon-cgi/xymoncgimsg.cgi
+#http_timeout_ms 10000
+#http_retries 3
 
 # How often the client runs the main loop (default: 300 seconds)
 #sleep 300
