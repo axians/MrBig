@@ -1,3 +1,12 @@
+260720  Fix uptime to use same measure as cpu.c
+        Uses Pdh to get the boot time instead of GetTickCount64() as it was
+        differing from cpu which was more correct.
+
+260720  Clientlog KB use combination of wmi and registry
+        In order to get an accurate list of kbs, both the registry and wmi are
+        used to query kbs. 
+        key searched: HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall
+        HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall
 
 260630  Clientlog KB use wmi
         To reenable wmi without crashing, it now uses wmi requests to get the KB list.
