@@ -141,6 +141,86 @@ void kbs_customParse(char* dest, BSTR localizedDateStr) {
     snprintf(dest, 11, "%04d-%02d-%02d", year, month, day);
 }
 
+static void kbs_scanRegistryUninstall(clog_Arena *scratch, TreeSet **kbs, const wchar_t *path, REGSAM samDesired) {
+    HKEY hUninstall;
+    LONG result = RegOpenKeyExW(
+        HKEY_LOCAL_MACHINE,
+        path,
+        0, KEY_READ | samDesired, &hUninstall);
+
+    if (result != ERROR_SUCCESS) {
+        LOG_DEBUG("\tkbs.c: Could not open Uninstall registry key '%ls' (sam=0x%lx), error %ld.",
+                  path, (unsigned long)samDesired, (long)result);
+        return;
+    }
+
+    WCHAR subkeyName[256];
+    DWORD index = 0;
+
+    while (1) {
+        DWORD subkeyNameLen = 256;
+        result = RegEnumKeyExW(hUninstall, index++, subkeyName, &subkeyNameLen,
+                               NULL, NULL, NULL, NULL);
+        if (result == ERROR_NO_MORE_ITEMS)
+            break;
+        if (result != ERROR_SUCCESS)
+            continue;
+
+        HKEY hEntry;
+        if (RegOpenKeyExW(hUninstall, subkeyName, 0, KEY_READ | samDesired,
+                          &hEntry) != ERROR_SUCCESS)
+            continue;
+
+        // Try subkey name first for KB number, then fall back to DisplayName
+        DWORD kb = kbs_ExtractKBNumber(subkeyName);
+        if (kb == 0) {
+            WCHAR displayName[512] = {0};
+            DWORD displayNameLen = sizeof(displayName) - sizeof(WCHAR); // reserve room for null
+            DWORD displayNameType = 0;
+            if (RegQueryValueExW(hEntry, L"DisplayName", NULL, &displayNameType,
+                                 (LPBYTE)displayName, &displayNameLen) == ERROR_SUCCESS &&
+                (displayNameType == REG_SZ || displayNameType == REG_EXPAND_SZ)) {
+                // Guarantee null termination in case the stored value lacks it
+                displayName[sizeof(displayName) / sizeof(WCHAR) - 1] = L'\0';
+                kb = kbs_ExtractKBNumber(displayName);
+            }
+        }
+
+        if (kb > 0) {
+            char dateStr[11];
+            snprintf(dateStr, 11, "1970-01-01");
+
+            WCHAR installDate[16] = {0};
+            DWORD installDateLen = sizeof(installDate) - sizeof(WCHAR); // reserve room for null
+            DWORD installDateType = 0;
+            if (RegQueryValueExW(hEntry, L"InstallDate", NULL, &installDateType,
+                                 (LPBYTE)installDate, &installDateLen) == ERROR_SUCCESS &&
+                (installDateType == REG_SZ || installDateType == REG_EXPAND_SZ)) {
+                // Guarantee null termination in case the stored value lacks it
+                installDate[sizeof(installDate) / sizeof(WCHAR) - 1] = L'\0';
+                // InstallDate is stored as YYYYMMDD
+                int year = 0, month = 0, day = 0;
+                if (swscanf(installDate, L"%4d%2d%2d", &year, &month, &day) == 3 &&
+                    month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
+                    year >= 1971 && year <= 9999) {
+                    snprintf(dateStr, 11, "%04d-%02d-%02d", year, month, day);
+                }
+            }
+
+            LOG_DEBUG("\t\tkbs.c: Registry found KB%lu installed %s.", kb, dateStr);
+            TreeSet *node = clog_ArenaAlloc(scratch, TreeSet, 1);
+            *node = (TreeSet){0};
+            node->Value = kb;
+            memcpy(node->dateInstalled, dateStr, 11);
+            kbs_InsertKB(kbs, node);
+        }
+
+        RegCloseKey(hEntry);
+    }
+
+    RegCloseKey(hUninstall);
+}
+
 void clog_kbs(clog_Arena scratch) {
     TreeSet *kbs = NULL;
 
@@ -247,6 +327,16 @@ Cleanup:
     CoUninitialize();
 
     LOG_DEBUG("\tkbs.c: Cleanup complete.");
+
+    LOG_DEBUG("\tkbs.c: Scanning registry Uninstall key for KBs (64-bit view).");
+    kbs_scanRegistryUninstall(&scratch, &kbs,
+        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        KEY_WOW64_64KEY);
+    LOG_DEBUG("\tkbs.c: Scanning registry Uninstall key for KBs (32-bit view).");
+    kbs_scanRegistryUninstall(&scratch, &kbs,
+        L"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        KEY_WOW64_64KEY);
+
     if (kbs) {
         LOG_DEBUG("\tkbs.c: Printing KBs to output.");
         kbs_appendKBs(&scratch, kbs);
