@@ -4,8 +4,8 @@
         HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\Customer
         HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\CI
         HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
-        Can be configured via clientlog under [clientlog:registry] section in
-        mrbig.cfg
+        Can be configured via minicfg under [clientlog:registry] section
+        Example in mrbig.cfg.dist
 
 260720  Fix uptime to use same measure as cpu.c
         Uses Pdh to get the boot time instead of GetTickCount64() as it was
