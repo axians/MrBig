@@ -6,8 +6,6 @@
 
 /* TCP analyzer */
 
-#define TCP_HEADER_NAME "tcp"
-
 // Default ephemeral port range if netsh retrieval fails 
 // (Windows default is 49152-65535)
 #define TCPCONNECTIONS_DEFAULT_EPHEMERAL_START 49152
@@ -635,7 +633,7 @@ void clog_tcp_connections(clog_Arena scratch) {
     }
 
     // Emit summary section and detailed per-connection rows.
-    clog_ArenaAppend(&scratch, "[tcp_connections]");
+    clog_ArenaAppend(&scratch, "[tcp_connections_statistics]");
     clog_ArenaAppend(&scratch, "\nTCP Analyzer report (source: Windows API)");
     clog_ArenaAppend(&scratch, "\nEphemeral Port Range: %lu-%lu (%lu ports)", ephemeralStart,
                      ephemeralEnd, ephemeralCount);
@@ -644,8 +642,14 @@ void clog_tcp_connections(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "\nOutgoing Connections: %lu", outgoingCount);
     clog_ArenaAppend(&scratch, "\nUnknown Direction: %lu", unknownCount);
     clog_ArenaAppend(&scratch, "\nFqdn: %s", fqdn);
+    clog_ArenaAppend(&scratch, "\n%-10s\t%-8s\t%-18s", "Port", "Count", "Service");
+    DWORD topPorts = min(portSummaryCount, 10u);
+    for (DWORD i = 0; i < topPorts; i++) {
+        clog_ArenaAppend(&scratch, "\n%-10lu\t%-8lu\t%-18s", portSummary[i].Port,
+                         portSummary[i].Count, tcpconnections_ServiceName(portSummary[i].Port));
+    }
 
-    clog_ArenaAppend(&scratch, "\n\n[tcp_established_connections]");
+    clog_ArenaAppend(&scratch, "\n\n[tcp_connections]");
     clog_ArenaAppend(&scratch,
                      "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-12s  %-40s  %-17s  %-16s",
                      "host_name", "direction", "pid", "process_name", "source_fqdn", "source_ip",
@@ -676,13 +680,6 @@ void clog_tcp_connections(clog_Arena scratch) {
                          targetPort);
     }
 
-    DWORD topPorts = min(portSummaryCount, 10u);
-    clog_ArenaAppend(&scratch, "\n\n[tcp_established_summary]");
-    clog_ArenaAppend(&scratch, "\n%-10s\t%-8s\t%-18s", "Port", "Count", "Service");
-    for (DWORD i = 0; i < topPorts; i++) {
-        clog_ArenaAppend(&scratch, "\n%-10lu\t%-8lu\t%-18s", portSummary[i].Port,
-                         portSummary[i].Count, tcpconnections_ServiceName(portSummary[i].Port));
-    }
 
     free(established);
     free(tcp4);
