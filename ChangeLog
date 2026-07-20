@@ -1,3 +1,4 @@
+260720  Rename headers in clientlog tcp_connections
 
 260630  Clientlog KB use wmi
         To reenable wmi without crashing, it now uses wmi requests to get the KB list.
