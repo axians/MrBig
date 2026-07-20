@@ -345,6 +345,11 @@ void ntp_skew(void)
 
     if (debug > 1) mrlog("ntp_skew()");
 
+	if (get_option("no_ntp_skew", 0)) {
+		mrsend(mrmachine, NTP_SKEW_TEST, "clear", "option no_ntp_skew\n");
+		return;
+	}
+
     strlcpy(urlhost, mrmachine, sizeof urlhost);
     for (p = urlhost; *p; p++) if (*p == ',') *p = '.';
     free_running = is_free_running_clock();
