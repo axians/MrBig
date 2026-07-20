@@ -110,7 +110,7 @@ winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 winuptime: $(ODIR)/winuptime.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^  -lpdh
 
 dev: 
 	$(MAKE) DEV=1 exe
