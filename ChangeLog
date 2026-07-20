@@ -1,4 +1,9 @@
 
+260720  Ntp-skew
+        Add new test that checks the system time against a configured NTP
+        server and reports the skew in seconds. Also shows recent time change
+        events from the event log.
+
 260630  Clientlog KB use wmi
         To reenable wmi without crashing, it now uses wmi requests to get the KB list.
 
