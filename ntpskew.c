@@ -410,6 +410,8 @@ void ntp_skew(void)
                       "NTP peers may be elevated"
                       "</span><br>\n");
     }
+    msgpos += snprintf(msg + msgpos, sizeof msg - msgpos,
+                      "<h2>Currently evaluating!</h2><br>Always &green for now, until we finetune the alert criteria\n");
 
     msgpos += snprintf(msg + msgpos, sizeof msg - msgpos,
                       "<table border=\"1\" cellpadding=\"4\" cellspacing=\"0\">\n"
@@ -445,5 +447,9 @@ void ntp_skew(void)
              "</pre></center>\n",
              urlhost, urlhost);
 
+    // for now always green
+    mrsend(mrmachine, NTP_SKEW_TEST, "green", msg);
+    #if 0 // actual send
     mrsend(mrmachine, NTP_SKEW_TEST, (char *)color, msg);
+    #endif
 }
