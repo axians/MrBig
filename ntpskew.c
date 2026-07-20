@@ -366,10 +366,22 @@ void ntp_skew(void)
     }
 
     if (worst_idx < 0) {
-        msgpos = snprintf(msg, sizeof msg, "%s\n\nNo NTP servers responded.\n", now);
-        for (i = 0; i < nservers; i++)
-            msgpos += snprintf(msg+msgpos, sizeof msg-msgpos,
-                               "  %s\n", servers[i][0] ? servers[i] : "(local)");
+        int n = snprintf(msg, sizeof msg, "%s\n\nNo NTP servers responded.\n", now);
+        if (n < 0) msgpos = 0;
+        else if ((size_t)n >= sizeof msg) msgpos = sizeof msg - 1;
+        else msgpos = (size_t)n;
+
+        for (i = 0; i < nservers && msgpos < sizeof msg - 1; i++) {
+            size_t rem = sizeof msg - msgpos;
+            n = snprintf(msg + msgpos, rem,
+                         "  %s\n", servers[i][0] ? servers[i] : "(local)");
+            if (n < 0) break;
+            if ((size_t)n >= rem) {
+                msgpos = sizeof msg - 1;
+                break;
+            }
+            msgpos += (size_t)n;
+        }
         mrsend(mrmachine, NTP_SKEW_TEST, "yellow", msg);
         return;
     }
