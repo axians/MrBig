@@ -12,7 +12,6 @@
 
 void clog_cpuinfo(clog_Arena scratch) {
 
-    clog_ArenaAppend(&scratch, "[cpu]\n");
     DWORD len = 0;
     GetLogicalProcessorInformationEx(RelationProcessorCore, NULL, &len);
     PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX buffer =
@@ -45,6 +44,24 @@ void clog_cpuinfo(clog_Arena scratch) {
         offset += info->Size;
     }
 
+    LOG_DEBUG("cpuinfo.c\tGetting Packages\n");
+    DWORD pkgLen = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorPackage, NULL, &pkgLen);
+    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX pkgBuffer =
+        (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)malloc(pkgLen);
+
+    int packageCount = 0;
+    if (GetLogicalProcessorInformationEx(RelationProcessorPackage, pkgBuffer, &pkgLen)) {
+        DWORD pkgOffset = 0;
+        while (pkgOffset < pkgLen) {
+            PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
+                (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)((BYTE *)pkgBuffer + pkgOffset);
+            packageCount++;
+            pkgOffset += info->Size;
+        }
+    }
+    free(pkgBuffer);
+
     LOG_DEBUG("cpuinfo.c\tGetting Threads\n");
     WORD groups = GetActiveProcessorGroupCount();
 
@@ -55,15 +72,20 @@ void clog_cpuinfo(clog_Arena scratch) {
 
 
     free(buffer);
-    clog_ArenaAppend(&scratch, "    CPU Packages: %d\n", groups);
-    clog_ArenaAppend(&scratch, "  Physical Cores: %d\n", coreCount);
-    clog_ArenaAppend(&scratch, " Logical Threads: %d\n", total);
+    clog_ArenaAppend(&scratch, "[cpuinfo]\n");
+    clog_ArenaAppend(&scratch, "     CPU Sockets: %d\n", packageCount);
+    if (packageCount > 0) {
+        clog_ArenaAppend(&scratch, "Cores per socket: %d\n", coreCount / packageCount);
+    } else {
+        clog_ArenaAppend(&scratch, "Cores per socket: N/A\n");
+    }
+    clog_ArenaAppend(&scratch, "     cores total: %d\n", coreCount);
     if (coreCount > 0) {
-        clog_ArenaAppend(&scratch, "Threads per core: %d\n", total / coreCount);
+        clog_ArenaAppend(&scratch, "    SMT per core: %d\n", total / coreCount);
+    } else {
+        clog_ArenaAppend(&scratch, "    SMT per core: N/A\n");
     }
-    else {
-        clog_ArenaAppend(&scratch, "Threads per core: N/A\n");
-    }
+    clog_ArenaAppend(&scratch, " .      MT total: %d\n", total);
 }
 
 #ifdef STANDALONE
