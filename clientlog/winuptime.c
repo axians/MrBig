@@ -17,7 +17,7 @@ void clog_winuptime(clog_Arena scratch) {
     systime_lu.LowPart = systime_filetime.dwLowDateTime;
     systime_lu.HighPart = systime_filetime.dwHighDateTime;
 
-    ULONGLONG ms_since_boot = GetTickCount();
+    ULONGLONG ms_since_boot = GetTickCount64();
     ULONGLONG boottime_10ns = systime_lu.QuadPart - ms_since_boot * 10000;
     boottime_lu.QuadPart = boottime_10ns;
     boottime_filetime.dwLowDateTime = boottime_lu.LowPart;

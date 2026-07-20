@@ -1,5 +1,6 @@
 #include "mrbig.h"
 #include "clientlog/clientlog.h"
+#include <stdio.h>
 
 #define MEMSIZE 4
 #define PATTERN_SIZE (sizeof big_pattern)
@@ -24,6 +25,7 @@ double dfyellow, dfred;
 int cpuyellow, cpured;
 int memyellow, memred;
 int debug = 0;
+int is_ext_filter_enabled = 1;
 int dirsep;
 int msgage;
 int memsize = MEMSIZE;
@@ -1056,7 +1058,7 @@ void mrbig(void)
 		wmi();
 		check_chunks("after wmi test");
 
-		if (pickupdir[0]) ext_tests();
+		if (pickupdir[0]) ext_tests(is_ext_filter_enabled);
 
 		lastrun = t;
 		t = time(NULL);
@@ -1089,6 +1091,7 @@ void usage(void)
 	fprintf(stderr, "	-u	uninstall service\n");
 	fprintf(stderr, "	-uNAME	uninstall service with alternate name\n");
 	fprintf(stderr, "	-t	run in standalone mode\n");
+	fprintf(stderr, "	--disable-ext-filters	disable external file filter\n");
 	exit(1);
 }
 
@@ -1136,6 +1139,8 @@ int main(int argc, char **argv)
 			return 0;
 		} else if (!strcmp(argv[i], "-t")) {
 			standalone = 1;
+        } else if (!strcmp(argv[i], "--disable-ext-filters")) {
+            is_ext_filter_enabled = 0;
 		} else {
 			fprintf(stderr, "Bogus option '%s'\n", argv[i]);
 			usage();
