@@ -55,10 +55,19 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         continue
     fi
 
-    # Header
+    # Header — accept both YYYY-MM-DD and YYMMDD (normalised to YYYY-MM-DD)
+    is_header=0
     if [[ "$line" =~ ^[[:space:]]*([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+(.*)$ ]]; then
         entry_date="${BASH_REMATCH[1]}"
         summary="${BASH_REMATCH[2]}"
+        is_header=1
+    elif [[ "$line" =~ ^[[:space:]]*([0-9]{2})([0-9]{2})([0-9]{2})[[:space:]]+(.*)$ ]]; then
+        entry_date="20${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}"
+        summary="${BASH_REMATCH[4]}"
+        is_header=1
+    fi
+
+    if (( is_header )); then
 
         if ! validate_date "$entry_date"; then
             echo "Error: $FILE:$line_no: invalid date '$entry_date'." >&2
