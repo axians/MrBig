@@ -43,6 +43,9 @@ void clog_clientversion(clog_Arena scratch);
 /* clock */
 void clog_clock(clog_Arena scratch);
 
+/* cpuinfo */
+void clog_cpuinfo(clog_Arena scratch);
+
 /* date */
 void clog_date(clog_Arena scratch);
 
@@ -68,6 +71,9 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a);
 
 /* reboots */
 void clog_reboots(DWORD maxNumReboots, clog_Arena scratch);
+
+/* registry */
+void clog_registry(clog_Arena scratch);
 
 /* runningservices */
 void clog_runningservices(clog_Arena scratch);

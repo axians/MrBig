@@ -54,6 +54,9 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     RUN(clog_who, 10, arena);
     clog_ArenaAppend(&arena, "\n");
 
+    RUN(clog_cpuinfo, arena);
+    clog_ArenaAppend(&arena, "\n");
+
     RUN(clog_diskinfo, arena);
     clog_ArenaAppend(&arena, "\n");
 
@@ -88,12 +91,15 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_certificates, arena);
-    // No newline
+    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_reboots, 5, arena);
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_clientversion, arena);
+    clog_ArenaAppend(&arena, "\n");
+
+    RUN(clog_registry, arena);
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_clock, arena);

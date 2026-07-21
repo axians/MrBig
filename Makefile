@@ -15,18 +15,18 @@ VER_RES=winver.res
 
 CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
-SRCS=cfg.c cpu.c disk.c memory.c msgs.c procs.c svcs.c mrbig.c \
+SRCS=cfg.c cpu.c disk.c memory.c msgs.c ntpskew.c procs.c svcs.c mrbig.c \
 	service.c readperf.c readlog.c ext_test.c \
 	strlcpy.c disphelper.c wmi.c
 HDRS=mrbig.h disphelper.h
-OBJS=cfg.o cpu.o disk.o memory.o msgs.o procs.o svcs.o mrbig.o \
+OBJS=cfg.o cpu.o disk.o memory.o msgs.o ntpskew.o procs.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o \
 	strlcpy.o disphelper.o wmi.o
-NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o procsnt.o svcs.o mrbig.o \
+NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o ntpskew.o procsnt.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o
-CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o bios.o date.o diskinfo.o domain.o \
-	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o \
-	who.o winmemory.o winports.o tcpconnections.o winroute.o winuptime.o arena.o utils.o clientlog.o
+CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o cpuinfo.o bios.o date.o diskinfo.o domain.o \
+	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o registry.o runningservices.o tcpconnections.o \
+	who.o winmemory.o winports.o winroute.o winuptime.o arena.o utils.o clientlog.o
 CLIENTLOGOBJS_32=$(patsubst %,../clientlog/build_x86/%,$(CLIENTLOGOBJS))
 CLIENTLOGOBJS_64=$(patsubst %,../clientlog/build_x64/%,$(CLIENTLOGOBJS))
 CFG=mrbig.cfg

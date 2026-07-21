@@ -34,6 +34,10 @@ display 10.0.4.5
 #cpuyellow 80
 #cpured 90
 
+# Time offset thresholds for NTP skew check, in seconds (default: 60 yellow, 300 red)
+#ntpskewyellow 60
+#ntpskewred 300
+
 # Critical levels for filesystems (default: 90 yellow, 95 red)
 #dfyellow 90
 #dfred 95
@@ -142,3 +146,24 @@ MrBig
 #mysql
 #"IPSEC Services"
 
+[clientlog:registry]
+
+# The [clientlog:registry] section is for registry entries you want to show up in clientlog
+# It only outputs valid keys and values, and only if they exist. If a key or value does not exist, it is ignored.
+
+# Aliases for Root locations are:
+# HKLM = HKEY_LOCAL_MACHINE
+# HKCU = HKEY_CURRENT_USER
+# HKCR = HKEY_CLASSES_ROOT
+# HKU = HKEY_USERS
+# HKCC = HKEY_CURRENT_CONFIG
+
+# Format examples:
+# HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProductName
+# HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\CurrentBuild
+# HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
+
+# default registry values that are ALWAYS looked up and displayed in clientlog:
+# HKLM\SOFTWARE\Axians\ComputerProperties\Customer
+# HKLM\SOFTWARE\Axians\ComputerProperties\CI
+# HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
