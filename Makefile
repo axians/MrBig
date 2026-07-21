@@ -15,7 +15,7 @@ VER_RES=winver.res
 
 CFLAGS=-Wall -Werror -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -ggdb -DPACKAGE=\"$(PACKAGE)\" -DVERSION=\"$(VERSION)\"
 DOCS=INSTALL EVENTS ChangeLog DEVELOPMENT TODO EXT LARRD logs.cmd testfile.txt
-SRCS=cfg.c cpu.c disk.c memory.c msgs.c procs.c ntpskew.c svcs.c mrbig.c \
+SRCS=cfg.c cpu.c disk.c memory.c msgs.c ntpskew.c procs.c svcs.c mrbig.c \
 	service.c readperf.c readlog.c ext_test.c \
 	strlcpy.c disphelper.c wmi.c
 HDRS=mrbig.h disphelper.h
