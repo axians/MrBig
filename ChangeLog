@@ -1,3 +1,5 @@
+2026-07-21 Realese MrBig-0.26.6
+
 2026-07-21 Update Changelog formatting to be more readable and consistent.
     use the ./format-changelog.sh script to format the changelog file.
     this checks for correct date format, and adds a blank line between each
