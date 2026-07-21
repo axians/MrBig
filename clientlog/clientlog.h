@@ -43,6 +43,9 @@ void clog_clientversion(clog_Arena scratch);
 /* clock */
 void clog_clock(clog_Arena scratch);
 
+/* cpuinfo */
+void clog_cpuinfo(clog_Arena scratch);
+
 /* date */
 void clog_date(clog_Arena scratch);
 

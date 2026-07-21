@@ -54,6 +54,9 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     RUN(clog_who, 10, arena);
     clog_ArenaAppend(&arena, "\n");
 
+    RUN(clog_cpuinfo, arena);
+    clog_ArenaAppend(&arena, "\n");
+
     RUN(clog_diskinfo, arena);
     clog_ArenaAppend(&arena, "\n");
 
