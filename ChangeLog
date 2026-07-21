@@ -1,5 +1,11 @@
-260721  Add Clientlog Cpuinfo
-        Displays physical and logical core count
+2026-07-21 Update Changelog formatting to be more readable and consistent.
+    use the ./format-changelog.sh script to format the changelog file.
+    this checks for correct date format, and adds a blank line between each
+    entry, and ensures the entries are in order of date, with the most recent
+    entry at the top.
+
+2026-07-21 Add Clientlog Cpuinfo
+    Displays physical and logical core count
 
 260721  Rename headers in clientlog tcp_connections
 
