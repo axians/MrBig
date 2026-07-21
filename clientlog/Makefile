@@ -15,8 +15,7 @@ else
 endif
 
 ODIR = .
-_OBJ = applications.o bios.o certificates.o clientversion.o clock.o cpuinfo.o date.o domain.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o runningservices.o tcpconnections.o who.o winmemory.o winports.o winroute.o winuptime.o
-
+_OBJ = applications.o bios.o certificates.o clientversion.o clock.o cpuinfo.o date.o domain.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o registry.o runningservices.o tcpconnections.o who.o winmemory.o winports.o winroute.o winuptime.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 exe: x86.exe x64.exe
@@ -58,7 +57,7 @@ bios: $(ODIR)/bios.o $(ODIR)/arena.o
 clientversion: $(ODIR)/clientversion.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
-clock: $(ODIR)/clock.o $(ODIR)/arena.o
+clock: $(ODIR)/clock.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 cpuinfo: $(ODIR)/cpuinfo.o $(ODIR)/arena.o
@@ -89,6 +88,9 @@ processes:  $(ODIR)/processes.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lpdh
 
 reboots: $(ODIR)/reboots.o $(ODIR)/utils.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
+
+registry: $(ODIR)/registry.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 runningservices: $(ODIR)/runningservices.o $(ODIR)/arena.o
