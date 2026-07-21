@@ -1,3 +1,5 @@
+260721  Rename headers in clientlog tcp_connections
+
 260720  Add Clientlog Registry
         Fetches from configured keys and displays the values. 
         Predefined keys are:
