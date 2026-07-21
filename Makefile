@@ -26,7 +26,7 @@ NTOBJS=cfg.o cpu.o disk.o memory.o msgs.o ntpskew.o procsnt.o svcs.o mrbig.o \
 	service.o readperf.o readlog.o ext_test.o
 CLIENTLOGOBJS=applications.o certificates.o clientversion.o clock.o cpuinfo.o bios.o date.o diskinfo.o domain.o \
 	eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o registry.o runningservices.o tcpconnections.o \
-	who.o winmemory.o winports.o tcpconnections.o winroute.o winuptime.o arena.o utils.o clientlog.o
+	who.o winmemory.o winports.o winroute.o winuptime.o arena.o utils.o clientlog.o
 CLIENTLOGOBJS_32=$(patsubst %,../clientlog/build_x86/%,$(CLIENTLOGOBJS))
 CLIENTLOGOBJS_64=$(patsubst %,../clientlog/build_x64/%,$(CLIENTLOGOBJS))
 CFG=mrbig.cfg
