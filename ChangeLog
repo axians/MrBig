@@ -1,3 +1,21 @@
+260720  Add Clientlog Registry
+        Fetches from configured keys and displays the values. 
+        Predefined keys are:
+        HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\Customer
+        HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\CI
+        HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
+        Can be configured via minicfg under [clientlog:registry] section
+        Example in mrbig.cfg.dist
+
+260720  Fix uptime to use same measure as cpu.c
+        Uses Pdh to get the boot time instead of GetTickCount64() as it was
+        differing from cpu which was more correct.
+
+260720  Clientlog KB use combination of wmi and registry
+        In order to get an accurate list of kbs, both the registry and wmi are
+        used to query kbs. 
+        key searched: HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall
+        HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall
 
 260720  Ntp-skew
         Add new test that checks the system time against a configured NTP
