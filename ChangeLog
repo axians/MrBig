@@ -1,4 +1,13 @@
-260720  Rename headers in clientlog tcp_connections
+260721  Rename headers in clientlog tcp_connections
+
+260720  Add Clientlog Registry
+        Fetches from configured keys and displays the values. 
+        Predefined keys are:
+        HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\Customer
+        HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\CI
+        HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
+        Can be configured via minicfg under [clientlog:registry] section
+        Example in mrbig.cfg.dist
 
 260720  Fix uptime to use same measure as cpu.c
         Uses Pdh to get the boot time instead of GetTickCount64() as it was

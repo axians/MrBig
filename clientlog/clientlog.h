@@ -69,6 +69,9 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a);
 /* reboots */
 void clog_reboots(DWORD maxNumReboots, clog_Arena scratch);
 
+/* registry */
+void clog_registry(clog_Arena scratch);
+
 /* runningservices */
 void clog_runningservices(clog_Arena scratch);
 
