@@ -1,337 +1,342 @@
-260721  Add Clientlog Cpuinfo
-        Displays physical and logical core count
-
-260721  Rename headers in clientlog tcp_connections
-
-260720  Add Clientlog Registry
-        Fetches from configured keys and displays the values. 
-        Predefined keys are:
-        HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\Customer
-        HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\CI
-        HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
-        Can be configured via minicfg under [clientlog:registry] section
-        Example in mrbig.cfg.dist
-
-260720  Fix uptime to use same measure as cpu.c
-        Uses Pdh to get the boot time instead of GetTickCount64() as it was
-        differing from cpu which was more correct.
-
-260720  Clientlog KB use combination of wmi and registry
-        In order to get an accurate list of kbs, both the registry and wmi are
-        used to query kbs. 
-        key searched: HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall
-        HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall
-
-260720  Ntp-skew
-        Add new test that checks the system time against a configured NTP
-        server and reports the skew in seconds. Also shows recent time change
-        events from the event log.
-
-260630  Clientlog KB use wmi
-        To reenable wmi without crashing, it now uses wmi requests to get the KB list.
-
-260630  Add filtering for external tests based on the test name & path
-        This allows to run only a subset of the configured external tests.
-        Dissalowing from system folders and users.
-        Only allowing files that end with .bat or .cmd.
-        Disable with --disable-ext-filters
-
-260629  Release MrBig-0.26.5
-
-260623  Increase Uptime & Who int sizes to ULONGLONG
-        Changed the Uptime and Who modules to use ULONGLONG instead of DWORD to avoid overflow issues on 
-        systems that have been up for a long time or have users that have been logged in for a long time. 
-        This change allows the Uptime and Who modules to handle larger values without overflow.
-        Breaks compatability with windows server 2003 and earlier that don't
-        support GetTickCount64().
-
-260622  Add tcp_connections to Clientlog
-        Uses netstat to create rows of established tcp connections that can be
-        used to create a network map. And a summary of services that
-        communicate to and from this node.
-
-260225  Add timestamp to debuglog messages.
-        Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
-        Add ubr (Update Build Revision) for clientlog as fourth value.
-        Extend payload buffer for certificate in clientlog from 512 to 1024 to accommodate larger payload.
-        Release MrBig-0.26.4
-
-260203	Changed Msgs to default to disabled with opt-in
-        seemed to cause crashes when loading in registry.
-        enable with option enable_msgs
-        
-251222  Add PPID to clientlog processes
-
-251517  Added Clientlog module, which writes a big log of rows,
-        containg information about the Windows machine. Most info
-        modules are recreations of Linux command line utilities.
-        Rewrote readlog.c using Wevt32 API.
-        Released MrBig-0.26.3
-
-170615  Separated cpu and memory monitoring. Now cpu will not alert together
-        with memory.
-        Released MrBig-0.25.0.
-
-110202  Add support for reporting procs and svcs monitoring under
-        alternate host names, configurable per process & service.
-
-110102  Avoid looping on double faults in exception handler.
-        Revert the disk report to use kilobytes to avoid breaking
-          compatibility with scripts that parse it.
-        Document commandline for installing under a different service name.
-        Release Mrbig-0.22.0.
- 
-101112  Remove 5kB hardcoded report size limit in another place.
-
-101025  Clean up external script handling and bump default report size
-        limit to 16kB.
-        Release MrBig-0.21.0.
-
-101008  Restore Windows 2000 support that was broken in 0.20.0 due to
-        lack of AddVectoredExceptionHandler support in kernel32.dll.
-
-101006  Fix support for >2TB disks in disk.c
-
-100929  rewrote mrsend() and recv_cfg() to use non-blocking sockets w/ timeout
-
-100823  build with mingw-w64-1.0 / gcc-4.5.1 toolchain 
-	import sources to qbranch SVN
-	add usage()
-	ship releases w/ debugging info so gdb, addr2line et. al work
-	fix warnings
-	remove DOS linebreaks
-	fix 64-bit pointer cast issues
-	build with -O2 instead of -O3
-	log crashes to c:\mrbig_crash.txt with time, stacktrace and ctx dump
-	released version 0.20.0
-
-100401	Commented out #include <windows.h> in mrbig.h.
-
-090121	Allow the service to be installed with another service name:
-	mrbig -iSomeOtherServiceName
-	mrbig -uSomeOtherServiceName
-	This allows a second instance of Mr Big to be installed and used
-	for cluster monitoring.
-	Make the maximum report size configurable:
-	report_size XXX
-	The default size is still 5000 bytes.
-
-090116	msgs.c: Close hTestKey after use.
-	Released 0.19.1.
+2026-07-21 Update Changelog formatting to be more readable and consistent.
+    use the ./format-changelog.sh script to format the changelog file.
+    this checks for correct date format, and adds a blank line between each
+    entry, and ensures the entries are in order of date, with the most recent
+    entry at the top.
+
+2026-07-21 Add Clientlog Cpuinfo
+    Displays physical and logical core count
+
+2026-07-21 Rename headers in clientlog tcp_connections
+
+2026-07-20 Add Clientlog Registry
+    Fetches from configured keys and displays the values.
+    Predefined keys are:
+    HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\Customer
+    HKLM\SOFTWARE\Axians\SOFTWARE\Axians\ComputerProperties\CI
+    HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Domain
+    Can be configured via minicfg under [clientlog:registry] section
+    Example in mrbig.cfg.dist
+
+2026-07-20 Fix uptime to use same measure as cpu.c
+    Uses Pdh to get the boot time instead of GetTickCount64() as it was
+    differing from cpu which was more correct.
+
+2026-07-20 Clientlog KB use combination of wmi and registry
+    In order to get an accurate list of kbs, both the registry and wmi are
+    used to query kbs.
+    key searched: HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall
+    HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall
+
+2026-07-20 Ntp-skew
+    Add new test that checks the system time against a configured NTP
+    server and reports the skew in seconds. Also shows recent time change
+    events from the event log.
+
+2026-06-30 Clientlog KB use wmi
+    To reenable wmi without crashing, it now uses wmi requests to get the KB list.
+
+2026-06-30 Add filtering for external tests based on the test name & path
+    This allows to run only a subset of the configured external tests.
+    Dissalowing from system folders and users.
+    Only allowing files that end with .bat or .cmd.
+    Disable with --disable-ext-filters
+
+2026-06-29 Release MrBig-0.26.5
+
+2026-06-23 Increase Uptime & Who int sizes to ULONGLONG
+    Changed the Uptime and Who modules to use ULONGLONG instead of DWORD to avoid overflow issues on
+    systems that have been up for a long time or have users that have been logged in for a long time.
+    This change allows the Uptime and Who modules to handle larger values without overflow.
+    Breaks compatability with windows server 2003 and earlier that don't
+    support GetTickCount64().
+
+2026-06-22 Add tcp_connections to Clientlog
+    Uses netstat to create rows of established tcp connections that can be
+    used to create a network map. And a summary of services that
+    communicate to and from this node.
+
+2026-02-25 Add timestamp to debuglog messages.
+    Extend areana buffer from 512KB to 1MB to accommodate large payload in clientlog.
+    Add ubr (Update Build Revision) for clientlog as fourth value.
+    Extend payload buffer for certificate in clientlog from 512 to 1024 to accommodate larger payload.
+    Release MrBig-0.26.4
+
+2026-02-03 Changed Msgs to default to disabled with opt-in
+    seemed to cause crashes when loading in registry.
+    enable with option enable_msgs
+
+2025-12-22 Add PPID to clientlog processes
+
+2025-10-20 Added Clientlog module, which writes a big log of rows,
+    containg information about the Windows machine. Most info
+    modules are recreations of Linux command line utilities.
+    Rewrote readlog.c using Wevt32 API.
+    Released MrBig-0.26.3
+
+2017-06-15 Separated cpu and memory monitoring. Now cpu will not alert together
+    with memory.
+    Released MrBig-0.25.0.
+
+2011-02-02 Add support for reporting procs and svcs monitoring under
+    alternate host names, configurable per process & service.
+
+2011-01-02 Avoid looping on double faults in exception handler.
+    Revert the disk report to use kilobytes to avoid breaking
+    compatibility with scripts that parse it.
+    Document commandline for installing under a different service name.
+    Release Mrbig-0.22.0.
+
+2010-11-12 Remove 5kB hardcoded report size limit in another place.
+
+2010-10-25 Clean up external script handling and bump default report size
+    limit to 16kB.
+    Release MrBig-0.21.0.
+
+2010-10-08 Restore Windows 2000 support that was broken in 0.20.0 due to
+    lack of AddVectoredExceptionHandler support in kernel32.dll.
+
+2010-10-06 Fix support for >2TB disks in disk.c
+
+2010-09-29 rewrote mrsend() and recv_cfg() to use non-blocking sockets w/ timeout
+
+2010-08-23 build with mingw-w64-1.0 / gcc-4.5.1 toolchain
+    import sources to qbranch SVN
+    add usage()
+    ship releases w/ debugging info so gdb, addr2line et. al work
+    fix warnings
+    remove DOS linebreaks
+    fix 64-bit pointer cast issues
+    build with -O2 instead of -O3
+    log crashes to c:\mrbig_crash.txt with time, stacktrace and ctx dump
+    released version 0.20.0
+
+2010-04-01 Commented out #include <windows.h> in mrbig.h.
+
+2009-01-21 Allow the service to be installed with another service name:
+    mrbig -iSomeOtherServiceName
+    mrbig -uSomeOtherServiceName
+    This allows a second instance of Mr Big to be installed and used
+    for cluster monitoring.
+    Make the maximum report size configurable:
+    report_size XXX
+    The default size is still 5000 bytes.
+
+2009-01-16 msgs.c: Close hTestKey after use.
+    Released 0.19.1.
+
+2009-01-14 cfg.c: Use cfg.cache- as temporary file when reading configuration.
+    In case of error, write the error to cfg.cache- as well as the log.
+    Released 0.19.0.
 
-090114	cfg.c: Use cfg.cache- as temporary file when reading configuration.
-	In case of error, write the error to cfg.cache- as well as the log.
-	Released 0.19.0.
+2009-01-13 mrbig.c: New directive to set options:
+    option [option_name]
+    This is used to selectively disable tests:
+    option no_cpu|no_disk|no_wmi et al
+    All disabled tests except wmi and ext get clear status.
+
+2009-01-12 msgs.c: New setting fastmsgs speeds up message processing by only
+    looking at the last 64k. Three modes:
+    option fastmsgs=on always does does the simplified processing
+    option fastmsgs=off always reads all the messages
+    option fastmsgs=auto (the default) behaves like off unless the file
+    fastmsgs.cfg exists in the configuration directory. The file
+    can be empty.
 
-090113	mrbig.c: New directive to set options:
-	option [option_name]
-	This is used to selectively disable tests:
-	option no_cpu|no_disk|no_wmi et al
-	All disabled tests except wmi and ext get clear status.
+2008-11-27 procs: list total and unique process count.
+    Released 0.18.1.
 
-090112	msgs.c: New setting fastmsgs speeds up message processing by only
-	looking at the last 64k. Three modes:
-	option fastmsgs=on always does does the simplified processing
-	option fastmsgs=off always reads all the messages
-	option fastmsgs=auto (the default) behaves like off unless the file
-	fastmsgs.cfg exists in the configuration directory. The file
-	can be empty.
+2008-11-20 Released 0.18.0 with complete support for x64 and wmi.
 
-081127	procs: list total and unique process count.
-	Released 0.18.1.
+2008-11-18 New module wmi.c allows monitoring anything that is
+    available from wmi.
 
-081120	Released 0.18.0 with complete support for x64 and wmi.
+2008-11-13 Display architecture in cpu status page.
+    Changed format of disk status page to not confuse the
+    rrd module do_disk.c in hobbit.
+    New test for memory in memory.c. Status page is compatible
+    with the rrd module do_memory.c in hobbit.
 
-081118	New module wmi.c allows monitoring anything that is
-	available from wmi.
+2008-11-12 Multi-architecture build environment.
 
-081113	Display architecture in cpu status page.
-	Changed format of disk status page to not confuse the
-	rrd module do_disk.c in hobbit.
-	New test for memory in memory.c. Status page is compatible
-	with the rrd module do_memory.c in hobbit.
+2008-11-10 Beta release of native 64-bit version.
 
-081112	Multi-architecture build environment.
+2008-11-06 In procs.c: allow process names in double quotes, e.g.
+    "Ulric fibbar.exe" 1 2
+    Released 0.17.0
 
-081110	Beta release of native 64-bit version.
+2008-01-30 More debugging code in msgs.c.
 
-081106	In procs.c: allow process names in double quotes, e.g.
-	"Ulric fibbar.exe" 1 2
-	Released 0.17.0
+2008-01-22 Fixed a bug in the memory debugging code.
+    Released 0.16.1.
 
-080130	More debugging code in msgs.c.
+2007-12-11 Added new filtering rule for messages: perform action based on
+    log name. Example:
+    ignore log Application
+    Released 0.16.0.
 
-080122	Fixed a bug in the memory debugging code.
-	Released 0.16.1.
+2007-08-24 Updated ext_test.c to allow tests to be performed on behalf of
+    other machines. This is done by specifying the file name as
+    machine,example,com.test.
 
-071211	Added new filtering rule for messages: perform action based on
-	log name. Example:
-	ignore log Application
-	Released 0.16.0.
+2007-02-27 Added a bit of debugging to disk.c.
 
-070824	Updated ext_test.c to allow tests to be performed on behalf of
-	other machines. This is done by specifying the file name as
-	machine,example,com.test.
+2007-01-18 New debugging option memsize.
+    Bugfix: the information eventlog type was not handled at all.
+    Completely eradicated all use of snprintf and strlcat.
+    Released 0.14.0.
 
-070227	Added a bit of debugging to disk.c.
+2006-12-12 Several changes in mrbig.c to run better on Longhorn.
+    Released 0.13.4.
 
-070118	New debugging option memsize.
-	Bugfix: the information eventlog type was not handled at all.
-	Completely eradicated all use of snprintf and strlcat.
-	Released 0.14.0.
+2006-12-05 In cpu.c: replaced GlobalMemoryStatus with GlobalMemoryStatusEx.
+    Released 0.13.3.
 
-061212	Several changes in mrbig.c to run better on Longhorn.
-	Released 0.13.4.
+2006-11-23 More specific error messages from winsock code. Specifically
+    WSAGetLastError() is included in each mrlog call.
+    Released 0.13.2.
 
-061205	In cpu.c: replaced GlobalMemoryStatus with GlobalMemoryStatusEx.
-	Released 0.13.3.
+2006-11-21 New mrbig.cfg option to set debug level:
+    debug N
+    Released 0.13.1.
 
-061123	More specific error messages from winsock code. Specifically
-	WSAGetLastError() is included in each mrlog call.
-	Released 0.13.2.
+2006-11-16 Massive rewrite of mrsend et al to implement grace periods
+    for alarms that shouldn't fire until after som time.
+    New configuration option:
+    gracetime <test> <time>
+    E.g.
+    gracetime cpu 600
+    Released 0.13.0.
 
-061121	New mrbig.cfg option to set debug level:
-	debug N
-	Released 0.13.1.
+2006-10-31 Don't sleep in mrsend when nothing has been sent to the bbd.
+    Reduce sleep time to 5 seconds.
+    disk.c: Include alert thresholds in report.
 
-061116	Massive rewrite of mrsend et al to implement grace periods
-	for alarms that shouldn't fire until after som time.
-	New configuration option:
-	gracetime <test> <time>
-	E.g.
-	gracetime cpu 600
-	Released 0.13.0.
+2005-12-06 Alarm when memory usage exceeds memred or memyellow percent.
 
-061031	Don't sleep in mrsend when nothing has been sent to the bbd.
-	Reduce sleep time to 5 seconds.
-	disk.c: Include alert thresholds in report.
+2005-11-21 When sending reports to several displays, sleep for 10
+    seconds between each.
+    Released 0.10.0.
+
+2005-11-11 Terminate each report with \n\0 rather than \n. This is
+    what Quest's client does.
+
+2005-10-25 Always sleep at least SLEEP_MIN seconds between loops.
+
+2005-07-12 Added buffer overrun detection to big_malloc et al.
+
+2005-07-08 Handle unexpected time changes rationally. Released 0.8.1.
 
-051206	Alarm when memory usage exceeds memred or memyellow percent.
+2005-07-07 mrbig.c: new function insert_status keeps track of changes
+    in test status so that the main loop can be run more often
+    without sending more reports to the bbdisplay.
+    Added shutdown() call to mrsend, as suggested by msdn.
+    New variable mrloop regulates how often the main loop runs.
+    New configuration option controls mrloop.
+    Released 0.8.0.
+
+2005-07-05 readlog.c: handle the case that RegQueryValueEx may not
+    null-terminate the result.
 
-051121	When sending reports to several displays, sleep for 10
-	seconds between each.
-	Released 0.10.0.
-
-051111	Terminate each report with \n\0 rather than \n. This is
-	what Quest's client does.
-
-051025	Always sleep at least SLEEP_MIN seconds between loops.
-
-
-050712	Added buffer overrun detection to big_malloc et al.
-
-050708	Handle unexpected time changes rationally. Released 0.8.1.
-
-050707	mrbig.c: new function insert_status keeps track of changes
-	in test status so that the main loop can be run more often
-	without sending more reports to the bbdisplay.
-	Added shutdown() call to mrsend, as suggested by msdn.
-	New variable mrloop regulates how often the main loop runs.
-	New configuration option controls mrloop.
-	Released 0.8.0.
-
-050705	readlog.c: handle the case that RegQueryValueEx may not
-	null-terminate the result.
-
-050615	Modified the event log code for w2003.
-
-050530	cfg.c, mrbig.c: Removed bind directive under [mrbig] and added
-	global directive .bind instead. Tankevurpa.
-
-	Released 0.7.1.
-
-050530	msgs.c: New directive filters on event id.
-	Example: ignore id 1000
-
-	cfg.c, mrbig.c: New directive to bind local address (useful
-	when there are more than one interfaces).  This goes under
-	the [mrbig] section in mrbig.cfg, before any .configure lines.
-	Example: bind 10.0.35.20
-
-	Released 0.7.0.
-
-050510	Added lots of debugging output.
-
-050227	Introduced strlcat.c and strlcpy.c from OpenBSD.
-
-050224	Let mrlog print to stderr if running standalone.
-
-050201	cpu.c: New formula to calculate memory usage.
-	Release 0.5.0.
-
-050131	cpu.c: New version of pscount() which doesn't require
-	W2K registry.
-	Check each read_perfcounters() call for NULL results.
-
-050130	Rewrote procs.c so the same code can run on NT4 and W2K. This
-	requires psapi.dll, which is a free download on NT4.
-	Added Windows version and MrBig version to cpu status message.
-	In cpu.c: get_load() works for NT4 and W2K and reads
-	load average from registry.
-
-041210	Updated readcfg in mrbig.c to handle spaces in values, e.g. paths.
-
-041207	Changed the [services] header in mrbig.cfg.dist to [svcs].
-
-041125	Added -t option to run standalone (not as service) for testing.
-	Fixed potential divide by zero in cpu.c.
-	Wrote a sample mrbig.cfg.dist with all sections and removed
-	the other cfg files.
-
-041124	Use "double quotes" to specify display names rather than
-	service names in the configuration. It is not allowed to
-	mix service and display names.
-
-041123	Added [headers] to the configuration format.
-	New .include directive in the configuration file.
-	New .config directive gets configuration from server.
-	Writes cached config to C:\windows\system32\cfg.cache.
-	New minibbd server logs received messages to stdout.
-	New minicfg server to test .config directive.
-	Call WSAStartup only when the service starts and
-	WSACleanup only when it is stopped.
-
-041025	In cpu.c: print memory statistics using double rather than
-	long to avoid overflow.
-	In mrbig.c: allow multiple displays.
-	Released 0.3.2.
-
-041015	Removed every single instance of sprintf, strcpy and
-	strcat, even where buffer overflow is impossible.
-	The new function snprcat works like snprintf but prints
-	at the end of the string rather than the beginning.
-	Changed start type from DEMAND to AUTO in CreateService call.
-	Released 0.3.1.
-
-041012	Individual yellow and red levels for filesystems in disk.cfg.
-	In disk.c: Show which filesystems have error conditions.
-	In cpu.c: Added "Machine recently rebooted" lines.
-	Moved get_uptime into cpu.c and removed uptime.c.
-	Moved pscount into cpu.c and removed pscount.c.
-	Moved users into cpu.c and removed users.c.
-	Fixed up the formats of the various tests to better match
-	the original.
-	Figured out the horrible code that must be fixed in Larrd
-	to make memory graphs work. See LARRD.
-	Released 0.3.0.
-
-041010	Logging functions to open and close files.
-	Added status code explanations to the svcs test.
-
-041009	Use Mingw rather than Cygwin to compile. Minor changes to
-	mrsend() to use winsock2 rather than bsd socket.
-
-041007	Fixed memory leaks. Logging memory management functions,
-	define DEBUG_MEMORY to use.
-	Released 0.1.0.
-
-041006	Finally figured out how to calculate CPU load (cpu.c).
-	Fixed the uptime display in cpu.c.
-	Fixed the capacity percentage in disk.c
-	Added external tests (ext_test.c)
-
-041006	Released 0.0.2.
-
-041005	Added event log scanning. Filter based on type, source or message.
-	Replaced ad-hoc registry reading code with read_perfcounters.
+2005-06-15 Modified the event log code for w2003.
+
+2005-05-30 cfg.c, mrbig.c: Removed bind directive under [mrbig] and added
+    global directive .bind instead. Tankevurpa.
+
+    Released 0.7.1.
+
+2005-05-30 msgs.c: New directive filters on event id.
+    Example: ignore id 1000
+
+    cfg.c, mrbig.c: New directive to bind local address (useful
+    when there are more than one interfaces).  This goes under
+    the [mrbig] section in mrbig.cfg, before any .configure lines.
+    Example: bind 10.0.35.20
+
+    Released 0.7.0.
+
+2005-05-10 Added lots of debugging output.
+
+2005-02-27 Introduced strlcat.c and strlcpy.c from OpenBSD.
+
+2005-02-24 Let mrlog print to stderr if running standalone.
+
+2005-02-01 cpu.c: New formula to calculate memory usage.
+    Release 0.5.0.
+
+2005-01-31 cpu.c: New version of pscount() which doesn't require
+    W2K registry.
+    Check each read_perfcounters() call for NULL results.
+
+2005-01-30 Rewrote procs.c so the same code can run on NT4 and W2K. This
+    requires psapi.dll, which is a free download on NT4.
+    Added Windows version and MrBig version to cpu status message.
+    In cpu.c: get_load() works for NT4 and W2K and reads
+    load average from registry.
+
+2004-12-10 Updated readcfg in mrbig.c to handle spaces in values, e.g. paths.
+
+2004-12-07 Changed the [services] header in mrbig.cfg.dist to [svcs].
+
+2004-11-25 Added -t option to run standalone (not as service) for testing.
+    Fixed potential divide by zero in cpu.c.
+    Wrote a sample mrbig.cfg.dist with all sections and removed
+    the other cfg files.
+
+2004-11-24 Use "double quotes" to specify display names rather than
+    service names in the configuration. It is not allowed to
+    mix service and display names.
+
+2004-11-23 Added [headers] to the configuration format.
+    New .include directive in the configuration file.
+    New .config directive gets configuration from server.
+    Writes cached config to C:\windows\system32\cfg.cache.
+    New minibbd server logs received messages to stdout.
+    New minicfg server to test .config directive.
+    Call WSAStartup only when the service starts and
+    WSACleanup only when it is stopped.
+
+2004-10-25 In cpu.c: print memory statistics using double rather than
+    long to avoid overflow.
+    In mrbig.c: allow multiple displays.
+    Released 0.3.2.
+
+2004-10-15 Removed every single instance of sprintf, strcpy and
+    strcat, even where buffer overflow is impossible.
+    The new function snprcat works like snprintf but prints
+    at the end of the string rather than the beginning.
+    Changed start type from DEMAND to AUTO in CreateService call.
+    Released 0.3.1.
+
+2004-10-12 Individual yellow and red levels for filesystems in disk.cfg.
+    In disk.c: Show which filesystems have error conditions.
+    In cpu.c: Added "Machine recently rebooted" lines.
+    Moved get_uptime into cpu.c and removed uptime.c.
+    Moved pscount into cpu.c and removed pscount.c.
+    Moved users into cpu.c and removed users.c.
+    Fixed up the formats of the various tests to better match
+    the original.
+    Figured out the horrible code that must be fixed in Larrd
+    to make memory graphs work. See LARRD.
+    Released 0.3.0.
+
+2004-10-10 Logging functions to open and close files.
+    Added status code explanations to the svcs test.
+
+2004-10-09 Use Mingw rather than Cygwin to compile. Minor changes to
+    mrsend() to use winsock2 rather than bsd socket.
+
+2004-10-07 Fixed memory leaks. Logging memory management functions,
+    define DEBUG_MEMORY to use.
+    Released 0.1.0.
+
+2004-10-06 Finally figured out how to calculate CPU load (cpu.c).
+    Fixed the uptime display in cpu.c.
+    Fixed the capacity percentage in disk.c
+    Added external tests (ext_test.c)
+
+2004-10-06 Released 0.0.2.
+
+2004-10-05 Added event log scanning. Filter based on type, source or message.
+    Replaced ad-hoc registry reading code with read_perfcounters.
 
