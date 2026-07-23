@@ -3,6 +3,7 @@
 #include <iphlpapi.h>
 #include <tlhelp32.h>
 #include <stdio.h>
+#include <ctype.h>
 
 /* TCP analyzer */
 
@@ -21,7 +22,9 @@ typedef enum {
 
 typedef struct {
     CHAR LocalAddress[64];
+    CHAR LocalMac[32];
     CHAR RemoteAddress[64];
+    CHAR RemoteMac[32];
     CHAR RemoteFqdn[256];
     DWORD LocalPort;
     DWORD RemotePort;
@@ -36,8 +39,14 @@ typedef struct {
 } tcpconnections_PortSummary;
 
 typedef struct {
+    CHAR Ip[16];
+    CHAR Mac[32];
+} tcpconnections_LocalInterface;
+
+typedef struct {
     CHAR Ip[64];
     CHAR Fqdn[256];
+    CHAR Mac[32];
 } tcpconnections_RemoteHostCache;
 
 typedef struct {
@@ -123,10 +132,27 @@ static BOOL tcpconnections_GetProcessName(DWORD pid, CHAR *out, size_t outSize) 
     return success;
 }
 
-static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
+static void tcpconnections_FormatMacAddress(const BYTE *address, DWORD addressLen, CHAR *out,
+                                            size_t outSize) {
+    if (outSize == 0)
+        return;
+
+    if (address == NULL || addressLen < 6) {
+        snprintf(out, outSize, "none");
+        return;
+    }
+
+    snprintf(out, outSize, "%02x-%02x-%02x-%02x-%02x-%02x", address[0], address[1], address[2],
+             address[3], address[4], address[5]);
+}
+
+static DWORD tcpconnections_GetLocalInterfaceList(tcpconnections_LocalInterface *interfaces,
+                                                   DWORD maxInterfaces) {
     DWORD count = 0;
-    if (count < maxIps) {
-        snprintf(ips[count++], 16, "127.0.0.1");
+    if (count < maxInterfaces) {
+        snprintf(interfaces[count].Ip, sizeof(interfaces[count].Ip), "127.0.0.1");
+        snprintf(interfaces[count].Mac, sizeof(interfaces[count].Mac), "none");
+        count++;
     }
 
     ULONG size = 0;
@@ -141,7 +167,7 @@ static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
     if (GetAdaptersInfo(adapters, &size) == NO_ERROR) {
         for (PIP_ADAPTER_INFO p = adapters; p != NULL; p = p->Next) {
             for (IP_ADDR_STRING *addr = &p->IpAddressList; addr != NULL; addr = addr->Next) {
-                if (count >= maxIps)
+                if (count >= maxInterfaces)
                     break;
                 if (addr->IpAddress.String[0] == '\0')
                     continue;
@@ -150,13 +176,18 @@ static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
 
                 BOOL exists = FALSE;
                 for (DWORD i = 0; i < count; i++) {
-                    if (strcmp(ips[i], addr->IpAddress.String) == 0) {
+                    if (strcmp(interfaces[i].Ip, addr->IpAddress.String) == 0) {
                         exists = TRUE;
                         break;
                     }
                 }
                 if (!exists) {
-                    snprintf(ips[count++], 16, "%s", addr->IpAddress.String);
+                    snprintf(interfaces[count].Ip, sizeof(interfaces[count].Ip), "%s",
+                             addr->IpAddress.String);
+                    tcpconnections_FormatMacAddress(p->Address, p->AddressLength,
+                                                    interfaces[count].Mac,
+                                                    sizeof(interfaces[count].Mac));
+                    count++;
                 }
             }
         }
@@ -164,6 +195,15 @@ static DWORD tcpconnections_GetLocalIPv4List(CHAR ips[][16], DWORD maxIps) {
 
     free(adapters);
     return count;
+}
+
+static const CHAR *tcpconnections_FindLocalMac(const tcpconnections_LocalInterface *interfaces,
+                                               DWORD interfaceCount, const CHAR *ip) {
+    for (DWORD i = 0; i < interfaceCount; i++) {
+        if (strcmp(interfaces[i].Ip, ip) == 0)
+            return interfaces[i].Mac;
+    }
+    return "none";
 }
 
 static BOOL tcpconnections_IsCommonServerPort(DWORD port) {
@@ -435,6 +475,128 @@ static void tcpconnections_ResolveRemoteHostFqdn(const CHAR *remoteIp, CHAR *out
     snprintf(out, outSize, "%s", remoteIp);
 }
 
+static BOOL tcpconnections_IsMacToken(const CHAR *token) {
+    if (token == NULL)
+        return FALSE;
+
+    const size_t requiredLen = 17;
+    if (strlen(token) != requiredLen)
+        return FALSE;
+
+    for (size_t i = 0; i < requiredLen; i++) {
+        if ((i + 1) % 3 == 0) {
+            if (token[i] != '-' && token[i] != ':')
+                return FALSE;
+        } else if (!isxdigit((unsigned char)token[i])) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+static BOOL tcpconnections_ParseMacFromArpOutput(const CHAR *text, CHAR *out, size_t outSize) {
+    if (text == NULL || out == NULL || outSize == 0)
+        return FALSE;
+
+    const CHAR *cursor = text;
+    CHAR token[64];
+    while (*cursor != '\0') {
+        while (*cursor != '\0' && isspace((unsigned char)*cursor))
+            cursor++;
+
+        size_t tokenLen = 0;
+        while (*cursor != '\0' && !isspace((unsigned char)*cursor) && tokenLen < sizeof(token) - 1) {
+            token[tokenLen++] = *cursor;
+            cursor++;
+        }
+        token[tokenLen] = '\0';
+
+        if (tcpconnections_IsMacToken(token)) {
+            for (size_t i = 0; token[i] != '\0'; i++) {
+                token[i] = (CHAR)tolower((unsigned char)token[i]);
+            }
+            size_t copyLen = strnlen(token, outSize - 1);
+            memcpy(out, token, copyLen);
+            out[copyLen] = '\0';
+            return TRUE;
+        }
+
+        while (*cursor != '\0' && !isspace((unsigned char)*cursor))
+            cursor++;
+    }
+
+    return FALSE;
+}
+
+static void tcpconnections_ResolveRemoteHostMac(const CHAR *remoteIp, CHAR *out, size_t outSize) {
+    if (outSize == 0)
+        return;
+
+    snprintf(out, outSize, "none");
+    if (remoteIp == NULL || remoteIp[0] == '\0')
+        return;
+
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE readPipe = NULL;
+    HANDLE writePipe = NULL;
+    if (!CreatePipe(&readPipe, &writePipe, &sa, 0))
+        return;
+
+    if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(readPipe);
+        CloseHandle(writePipe);
+        return;
+    }
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.hStdOutput = writePipe;
+    si.hStdError = writePipe;
+    si.wShowWindow = SW_HIDE;
+
+    CHAR commandLine[128];
+    snprintf(commandLine, sizeof(commandLine), "arp -a %s", remoteIp);
+
+    BOOL created =
+        CreateProcessA(NULL, commandLine, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    CloseHandle(writePipe);
+    if (!created) {
+        CloseHandle(readPipe);
+        return;
+    }
+
+    CHAR output[4096];
+    DWORD totalRead = 0;
+    DWORD bytesRead = 0;
+    while (totalRead < sizeof(output) - 1) {
+        if (!ReadFile(readPipe, output + totalRead, (DWORD)(sizeof(output) - 1 - totalRead),
+                      &bytesRead, NULL) ||
+            bytesRead == 0) {
+            break;
+        }
+        totalRead += bytesRead;
+    }
+    output[totalRead] = '\0';
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    CloseHandle(readPipe);
+
+    if (!tcpconnections_ParseMacFromArpOutput(output, out, outSize)) {
+        snprintf(out, outSize, "none");
+    }
+}
+
 void clog_tcp_connections(clog_Arena scratch) {
     // Capture run timestamp and constants used by the direction heuristic.
     SYSTEMTIME t;
@@ -465,8 +627,9 @@ void clog_tcp_connections(clog_Arena scratch) {
                                       ntohs((u_short)r->dwLocalPort));
     }
 
-    CHAR localIPv4[128][16] = {0};
-    DWORD localIPv4Count = tcpconnections_GetLocalIPv4List(localIPv4, lengthof(localIPv4));
+    tcpconnections_LocalInterface localInterfaces[128] = {0};
+    DWORD localInterfaceCount =
+        tcpconnections_GetLocalInterfaceList(localInterfaces, lengthof(localInterfaces));
 
     // Collect established non-local connections for row output + summaries.
     DWORD estabCap = 256;
@@ -501,8 +664,8 @@ void clog_tcp_connections(clog_Arena scratch) {
             continue;
 
         BOOL remoteIsLocal = FALSE;
-        for (DWORD j = 0; j < localIPv4Count; j++) {
-            if (strcmp(localIPv4[j], remoteBuf) == 0) {
+        for (DWORD j = 0; j < localInterfaceCount; j++) {
+            if (strcmp(localInterfaces[j].Ip, remoteBuf) == 0) {
                 remoteIsLocal = TRUE;
                 break;
             }
@@ -524,6 +687,8 @@ void clog_tcp_connections(clog_Arena scratch) {
         ZeroMemory(&e, sizeof(e));
         snprintf(e.LocalAddress, sizeof(e.LocalAddress), "%s", localBuf);
         snprintf(e.RemoteAddress, sizeof(e.RemoteAddress), "%s", remoteBuf);
+        snprintf(e.LocalMac, sizeof(e.LocalMac), "%s",
+             tcpconnections_FindLocalMac(localInterfaces, localInterfaceCount, e.LocalAddress));
         e.LocalPort = ntohs((u_short)r->dwLocalPort);
         e.RemotePort = ntohs((u_short)r->dwRemotePort);
         e.Pid = r->dwOwningPid;
@@ -542,6 +707,7 @@ void clog_tcp_connections(clog_Arena scratch) {
         for (DWORD j = 0; j < remoteHostCacheCount; j++) {
             if (strcmp(remoteHostCache[j].Ip, e.RemoteAddress) == 0) {
                 snprintf(e.RemoteFqdn, sizeof(e.RemoteFqdn), "%s", remoteHostCache[j].Fqdn);
+                snprintf(e.RemoteMac, sizeof(e.RemoteMac), "%s", remoteHostCache[j].Mac);
                 cacheHit = TRUE;
                 break;
             }
@@ -549,11 +715,14 @@ void clog_tcp_connections(clog_Arena scratch) {
         if (!cacheHit) {
             tcpconnections_ResolveRemoteHostFqdn(e.RemoteAddress, e.RemoteFqdn,
                                                  sizeof(e.RemoteFqdn));
+            tcpconnections_ResolveRemoteHostMac(e.RemoteAddress, e.RemoteMac, sizeof(e.RemoteMac));
             if (remoteHostCacheCount < lengthof(remoteHostCache)) {
                 snprintf(remoteHostCache[remoteHostCacheCount].Ip,
                          sizeof(remoteHostCache[remoteHostCacheCount].Ip), "%s", e.RemoteAddress);
                 snprintf(remoteHostCache[remoteHostCacheCount].Fqdn,
                          sizeof(remoteHostCache[remoteHostCacheCount].Fqdn), "%s", e.RemoteFqdn);
+                snprintf(remoteHostCache[remoteHostCacheCount].Mac,
+                         sizeof(remoteHostCache[remoteHostCacheCount].Mac), "%s", e.RemoteMac);
                 remoteHostCacheCount++;
             }
         }
@@ -651,33 +820,38 @@ void clog_tcp_connections(clog_Arena scratch) {
 
     clog_ArenaAppend(&scratch, "\n\n[tcp_connections]");
     clog_ArenaAppend(&scratch,
-                     "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-12s  %-40s  %-17s  %-16s",
+                     "\n%-15s  %-10s  %-8s  %-31s  %-40s  %-17s  %-17s  %-12s  %-40s  %-17s  %-17s  %-16s",
                      "host_name", "direction", "pid", "process_name", "source_fqdn", "source_ip",
-                     "source_port", "target_fqdn", "target_ip", "target_port");
+                     "source_mac", "source_port", "target_fqdn", "target_ip", "target_mac",
+                     "target_port");
     for (DWORD i = 0; i < estabCount; i++) {
         const tcpconnections_Established *e = &established[i];
         const CHAR *sourceFqdn = fqdn;
         const CHAR *sourceIp = e->LocalAddress;
+        const CHAR *sourceMac = e->LocalMac;
         DWORD sourcePort = e->LocalPort;
         const CHAR *targetFqdn = e->RemoteFqdn;
         const CHAR *targetIp = e->RemoteAddress;
+        const CHAR *targetMac = e->RemoteMac;
         DWORD targetPort = e->RemotePort;
 
         if (e->Direction == tcpconnections_DirectionIncoming) {
             sourceFqdn = e->RemoteFqdn;
             sourceIp = e->RemoteAddress;
+            sourceMac = e->RemoteMac;
             sourcePort = e->RemotePort;
             targetFqdn = fqdn;
             targetIp = e->LocalAddress;
+            targetMac = e->LocalMac;
             targetPort = e->LocalPort;
         }
 
         clog_ArenaAppend(&scratch,
                          "\n%-15.15s  %-10.10s  %-8lu  %-31.31s  %-40.120s  "
-                         "%-17.17s  %-12lu  %-40.120s  %-17.17s  %-16lu",
+                         "%-17.17s  %-17.17s  %-12lu  %-40.120s  %-17.17s  %-17.17s  %-16lu",
                          hostName, tcpconnections_DirectionLabel(e->Direction), e->Pid,
-                         e->ProcessName, sourceFqdn, sourceIp, sourcePort, targetFqdn, targetIp,
-                         targetPort);
+                         e->ProcessName, sourceFqdn, sourceIp, sourceMac, sourcePort, targetFqdn,
+                         targetIp, targetMac, targetPort);
     }
 
 
