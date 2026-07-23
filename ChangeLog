@@ -1,3 +1,6 @@
+2026-07-23 Add source/target mac address to clientlog tcpconnections
+    using arp requests when available, otherwise none
+
 2026-07-21 Realese MrBig-0.26.6
 
 2026-07-21 Update Changelog formatting to be more readable and consistent.
