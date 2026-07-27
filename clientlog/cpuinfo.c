@@ -85,7 +85,7 @@ void clog_cpuinfo(clog_Arena scratch) {
     } else {
         clog_ArenaAppend(&scratch, "    SMT per core: N/A\n");
     }
-    clog_ArenaAppend(&scratch, " .      MT total: %d\n", total);
+    clog_ArenaAppend(&scratch, "       SMT total: %d\n", total);
 }
 
 #ifdef STANDALONE
