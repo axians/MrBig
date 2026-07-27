@@ -116,6 +116,7 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_clientversion, arena);
     clog_ArenaAppend(&arena, "\n");
+    clog_ArenaAppend(&arena, "\n");
 
 
     RUN(clog_clock, arena);
