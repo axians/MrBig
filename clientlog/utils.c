@@ -125,35 +125,54 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
         return status;
     }
 
-    status = WaitForSingleObject(procInfo.hProcess, PROCESS_TIMOUT_LIMIT_MS);
-    if (status != WAIT_OBJECT_0) {
-        if (status == WAIT_FAILED) {
-            status = GetLastError();
-            clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 4.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status);
-        } else if (status == WAIT_TIMEOUT) {
-            clog_ArenaAppend(&scratch, "(Failed to run command, process took more than %dms to run. Error code 5.%lu.)", PROCESS_TIMOUT_LIMIT_MS, status);
-        } else {
-            DWORD lastError = GetLastError();
-            clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 6.%lu.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status, lastError);
-        }
-        CloseHandle(procInfo.hProcess);
-        CloseHandle(procInfo.hThread);
-        CloseHandle(hPipeOutputRead);
-        return status;
-    }
-
+    // Poll: drain the pipe continuously while waiting for the process to exit.
+    // A blocking WaitForSingleObject before ReadFile deadlocks when the child's
+    // output fills the pipe buffer (child blocks on WriteFile, parent blocks on Wait).
     DWORD readBufLen = 0, written = 0;
     CHAR readBuf[BUFREAD];
-    do {
-        status = ReadFile(hPipeOutputRead, readBuf, BUFREAD-1, &readBufLen, NULL);
-        if (readBufLen > 0) {
+    DWORD startTick = GetTickCount();
+    BOOL processExited = FALSE;
+
+    while (!processExited) {
+        // Drain all currently available pipe data to keep the child unblocked.
+        DWORD available = 0;
+        while (PeekNamedPipe(hPipeOutputRead, NULL, 0, NULL, &available, NULL) && available > 0) {
+            DWORD toRead = min(available, (DWORD)(BUFREAD - 1));
+            if (!ReadFile(hPipeOutputRead, readBuf, toRead, &readBufLen, NULL) || readBufLen == 0) break;
             readBuf[readBufLen] = '\0';
             clog_ArenaAppend(&scratch, "%s", readBuf);
             written += readBufLen;
-        } else {
-            break;
         }
-    } while (TRUE);
+
+        status = WaitForSingleObject(procInfo.hProcess, 0);
+        if (status == WAIT_OBJECT_0) {
+            processExited = TRUE;
+        } else if (status == WAIT_FAILED) {
+            status = GetLastError();
+            clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 4.%#010x.)", status);
+            TerminateProcess(procInfo.hProcess, 1);
+            CloseHandle(procInfo.hProcess);
+            CloseHandle(procInfo.hThread);
+            CloseHandle(hPipeOutputRead);
+            return status;
+        } else if (GetTickCount() - startTick >= PROCESS_TIMOUT_LIMIT_MS) {
+            clog_ArenaAppend(&scratch, "(Failed to run command, process took more than %dms to run. Error code 5.%lu.)", PROCESS_TIMOUT_LIMIT_MS, (DWORD)WAIT_TIMEOUT);
+            TerminateProcess(procInfo.hProcess, 1);
+            CloseHandle(procInfo.hProcess);
+            CloseHandle(procInfo.hThread);
+            CloseHandle(hPipeOutputRead);
+            return WAIT_TIMEOUT;
+        } else {
+            Sleep(20);
+        }
+    }
+
+    // Drain any output written between the last PeekNamedPipe and process exit.
+    while (ReadFile(hPipeOutputRead, readBuf, BUFREAD - 1, &readBufLen, NULL) && readBufLen > 0) {
+        readBuf[readBufLen] = '\0';
+        clog_ArenaAppend(&scratch, "%s", readBuf);
+        written += readBufLen;
+    }
 
     CloseHandle(procInfo.hProcess);
     CloseHandle(procInfo.hThread);
