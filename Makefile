@@ -42,7 +42,7 @@ GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
 BRANCH := $(shell echo $${GITHUB_HEAD_REF:-$${GITHUB_REF_NAME:-$$(git rev-parse --abbrev-ref HEAD)}})
 
 
-FILEVER_COMMA = $(shell echo $(VERSION) | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
+FILEVER_COMMA = $(shell echo $(VERSION) | sed 's/-.*//' | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
 
 # -----------------------------
 # Version string logic
@@ -69,6 +69,7 @@ endif
 all:
 	$(MAKE) -C X86 mrbig.exe
 	$(MAKE) -C X64 mrbig64.exe
+.PHONY: $(VER_RC) $(VER_RES)
 
 $(VER_RC): version.rc.template
 	sed -e 's/@COMPANY@/$(COMPANY)/g' \

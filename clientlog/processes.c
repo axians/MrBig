@@ -422,9 +422,8 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a)
         processes_AppendTable(endedQuery, endedQuery.NumRows, a);
     }
 
-    clog_ArenaAppend(a, "[topprocessescpu]");
-    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS)
-    {
+    clog_ArenaAppend(a, "\n[topprocessescpu]");
+    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
         clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n",
                          startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     }
@@ -434,9 +433,8 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a)
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
     }
 
-    clog_ArenaAppend(a, "[topprocessesmemory]");
-    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS)
-    {
+    clog_ArenaAppend(a, "\n[topprocessesmemory]");
+    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
         clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n",
                          startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
     }

@@ -28,8 +28,20 @@ typedef struct TreeSet
     char dateInstalled[11]; // Format: YYYY-MM-DD
 } TreeSet;
 
-DWORD kbs_ExtractKBNumber(wchar_t *title)
-{
+static int kbs_isFallbackDate(const char *dateStr) {
+    return strcmp(dateStr, "1970-01-01") == 0;
+}
+
+static int kbs_shouldReplaceDate(const char *existingDate,
+                                 const char *incomingDate) {
+    if (kbs_isFallbackDate(incomingDate))
+        return 0;
+    if (kbs_isFallbackDate(existingDate))
+        return 1;
+    return 0;
+}
+
+DWORD kbs_ExtractKBNumber(wchar_t *title) {
     DWORD res = 0;
     BYTE *titleBytes = (BYTE *)title;
     int i = 0;
@@ -56,32 +68,75 @@ DWORD kbs_ExtractKBNumber(wchar_t *title)
     return 0;
 }
 
-void kbs_InsertKB(TreeSet **root, TreeSet *node)
-{
-    if (*root == NULL)
-    {
+void kbs_UpsertKB(TreeSet **root, clog_Arena *scratch, DWORD kb,
+                  const char *dateInstalled) {
+    if (*root == NULL) {
+        TreeSet *node = clog_ArenaAlloc(scratch, TreeSet, 1);
+        *node = (TreeSet){0};
+        node->Value = kb;
+        memcpy(node->dateInstalled, dateInstalled, 11);
         *root = node;
+        return;
     }
-    else
-    {
-        TreeSet *rootNode = *root;
-        if (node->Value < rootNode->Value)
-            kbs_InsertKB(&rootNode->Left, node);
-        else if (node->Value > rootNode->Value)
-            kbs_InsertKB(&rootNode->Right, node);
-        else
-            return;
+
+    TreeSet *rootNode = *root;
+    if (kb < rootNode->Value) {
+        kbs_UpsertKB(&rootNode->Left, scratch, kb, dateInstalled);
+        return;
     }
+    if (kb > rootNode->Value) {
+        kbs_UpsertKB(&rootNode->Right, scratch, kb, dateInstalled);
+        return;
+    }
+
+    if (kbs_shouldReplaceDate(rootNode->dateInstalled, dateInstalled))
+        memcpy(rootNode->dateInstalled, dateInstalled, 11);
 }
 
-void kbs_appendKBs(clog_Arena *a, TreeSet *root)
-{
-    LOG_DEBUG("\t\tkbs.c: Appending KB%lu %s.", root->Value, root->dateInstalled);
-    if (root->Left)
-        kbs_appendKBs(a, root->Left);
-    clog_ArenaAppend(a, "\nKB%lu %s", root->Value, root->dateInstalled);
-    if (root->Right)
-        kbs_appendKBs(a, root->Right);
+static size_t kbs_count(TreeSet *root) {
+    if (root == NULL)
+        return 0;
+    return 1 + kbs_count(root->Left) + kbs_count(root->Right);
+}
+
+static void kbs_collect(TreeSet *root, TreeSet **items, size_t *index) {
+    if (root == NULL)
+        return;
+    items[*index] = root;
+    (*index)++;
+    kbs_collect(root->Left, items, index);
+    kbs_collect(root->Right, items, index);
+}
+
+static int kbs_compareByDateThenKB(const void *lhs, const void *rhs) {
+    const TreeSet *left = *(const TreeSet *const *)lhs;
+    const TreeSet *right = *(const TreeSet *const *)rhs;
+
+    int dateCmp = strcmp(left->dateInstalled, right->dateInstalled);
+    if (dateCmp != 0)
+        return dateCmp;
+
+    return (left->Value < right->Value)
+               ? -1
+               : (left->Value > right->Value) ? 1 : 0;
+}
+
+static void kbs_appendKBsSorted(clog_Arena *a, TreeSet *root) {
+    size_t kbCount = kbs_count(root);
+    if (kbCount == 0)
+        return;
+
+    TreeSet **items = clog_ArenaAlloc(a, TreeSet *, kbCount);
+    size_t index = 0;
+    kbs_collect(root, items, &index);
+    qsort(items, kbCount, sizeof(TreeSet *), kbs_compareByDateThenKB);
+
+    for (size_t i = 0; i < kbCount; i++) {
+        LOG_DEBUG("\t\tkbs.c: Appending KB%lu %s.", items[i]->Value,
+                  items[i]->dateInstalled);
+        clog_ArenaAppend(a, "\nKB%lu %s", items[i]->Value,
+                         items[i]->dateInstalled);
+    }
 }
 
 int kbs_getDateElementOrder()
@@ -238,11 +293,7 @@ static void kbs_scanRegistryUninstall(clog_Arena *scratch, TreeSet **kbs, const 
             }
 
             LOG_DEBUG("\t\tkbs.c: Registry found KB%lu installed %s.", kb, dateStr);
-            TreeSet *node = clog_ArenaAlloc(scratch, TreeSet, 1);
-            *node = (TreeSet){0};
-            node->Value = kb;
-            memcpy(node->dateInstalled, dateStr, 11);
-            kbs_InsertKB(kbs, node);
+            kbs_UpsertKB(kbs, scratch, kb, dateStr);
         }
 
         RegCloseKey(hEntry);
@@ -342,13 +393,10 @@ void clog_kbs(clog_Arena scratch)
         DWORD kb = kbs_ExtractKBNumber(value.bstrVal);
         LOG_DEBUG("\t\tkbs.c: Extracted KB number %lu from WMI query result.",
                   kb);
-        if (kb > 0)
-        {
-            TreeSet *node = clog_ArenaAlloc(&scratch, TreeSet, 1);
-            *node = (TreeSet){0};
-            node->Value = kb;
-            kbs_customParse(node->dateInstalled, dateInstalled.bstrVal);
-            kbs_InsertKB(&kbs, node);
+        if (kb > 0) {
+            char dateStr[11];
+            kbs_customParse(dateStr, dateInstalled.bstrVal);
+            kbs_UpsertKB(&kbs, &scratch, kb, dateStr);
         }
 
         LOG_DEBUG("\t\tkbs.c: Releasing WMI object.");
@@ -376,10 +424,8 @@ Cleanup:
     if (kbs)
     {
         LOG_DEBUG("\tkbs.c: Printing KBs to output.");
-        kbs_appendKBs(&scratch, kbs);
-    }
-    else
-    {
+        kbs_appendKBsSorted(&scratch, kbs);
+    } else {
         LOG_DEBUG("\tkbs.c: No installed KBs found.");
         clog_ArenaAppend(&scratch, "(No KBs found)");
     }

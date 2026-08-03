@@ -12,49 +12,41 @@ green Tue Jul 06 02:43:47 VS 2004 [ntserver] All processes are OK
 static BOOL GetProcessList(void);
 // static void printError(TCHAR * msg);
 
-struct proc
-{
+struct proc {
     char *name;
     int count;
     struct proc *next;
 } *plist;
 
-struct cfg
-{
+struct cfg {
     char *name;
     int min, max;
     char *machine;
     struct cfg *next;
 } *pcfg;
 
-struct report
-{
+struct report {
     char str[5000];
     char *machine;
     char *color;
     struct report *next;
 } *preports_procs;
 
-static void read_proccfg(/*char *p*/)
-{
+static void read_proccfg(/*char *p*/) {
     struct cfg *pc;
     char b[100], name[100];
     char machine[100];
     int i, min, max, n;
 
     pcfg = NULL;
-    for (i = 0; get_cfg("procs", b, sizeof b, i); i++)
-    {
+    for (i = 0; get_cfg("procs", b, sizeof b, i); i++) {
         machine[0] = 0;
         name[0] = 0;
         if (b[0] == '#')
             continue;
-        if (b[0] == '"')
-        {
+        if (b[0] == '"') {
             n = sscanf(b + 1, "%[^\"]\" %d %d %s", name, &min, &max, machine);
-        }
-        else
-        {
+        } else {
             n = sscanf(b, "%s %d %d %s", name, &min, &max, machine);
         }
         if (n < 1)
@@ -67,31 +59,25 @@ static void read_proccfg(/*char *p*/)
         pc->name = big_strdup("read_proccfg (name)", name);
         pc->min = min;
         pc->max = max;
-        if (strlen(machine) > 0)
-        {
+        if (strlen(machine) > 0) {
             char *p;
-            for (p = machine; *p; p++)
-            {
+            for (p = machine; *p; p++) {
                 if (*p == '.')
                     *p = ',';
             }
             pc->machine = big_strdup("procs (machine)", machine);
-        }
-        else
+        } else
             pc->machine = big_strdup("procs (machine)", mrmachine);
         pc->next = pcfg;
         pcfg = pc;
     }
 }
 
-static struct proc *lookup_procname(char *p)
-{
+static struct proc *lookup_procname(char *p) {
     struct proc *pl;
 
-    for (pl = plist; pl; pl = pl->next)
-    {
-        if (!strcasecmp(pl->name, p))
-        {
+    for (pl = plist; pl; pl = pl->next) {
+        if (!strcasecmp(pl->name, p)) {
             return pl;
         }
     }
@@ -103,15 +89,13 @@ static struct proc *lookup_procname(char *p)
     return pl;
 }
 
-static void store_procname(char *p)
-{
+static void store_procname(char *p) {
     struct proc *pl = lookup_procname(p);
 
     pl->count++;
 }
 
-void procs(void)
-{
+void procs(void) {
     char b[5000];
     int n = sizeof b;
     char cfgfile[1024];
@@ -131,8 +115,7 @@ void procs(void)
     if (debug > 1)
         mrlog("procs(%p, %d)", b, n);
 
-    if (get_option("no_procs", 0))
-    {
+    if (get_option("no_procs", 0)) {
         mrsend(mrmachine, "procs", "clear", "option no_procs\n");
         return;
     }
@@ -143,32 +126,25 @@ void procs(void)
     read_proccfg(/*cfgfile*/);
     GetProcessList();
 
-    while (pcfg)
-    {
+    while (pcfg) {
         pc = pcfg;
         pcfg = pc->next;
         pl = lookup_procname(pc->name);
         m = pl->count;
-        if (m < pc->min || m > pc->max)
-        {
+        if (m < pc->min || m > pc->max) {
             mycolor = "red";
-        }
-        else
-        {
+        } else {
             mycolor = "green";
         }
         //		p[0] = '\0';
 
-        for (rep = preports_procs; rep; rep = rep->next)
-        {
-            if (!strcmp(pc->machine, rep->machine))
-            {
+        for (rep = preports_procs; rep; rep = rep->next) {
+            if (!strcmp(pc->machine, rep->machine)) {
                 break;
             }
         }
 
-        if (rep == NULL)
-        {
+        if (rep == NULL) {
             rep = big_malloc("procs (report)", sizeof(struct report));
             rep->next = preports_procs;
             rep->machine = big_strdup("procs (report->machine)", pc->machine);
@@ -176,13 +152,12 @@ void procs(void)
             rep->color = "green";
             preports_procs = rep;
         }
-        if (strcmp(mycolor, "green"))
-        {
+        if (strcmp(mycolor, "green")) {
             // if any process is non-green, report goes red
             rep->color = "red";
         }
-        snprcat(rep->str, sizeof rep->str, "&%s %s - %d running (min %d, max %d)\n",
-                mycolor, pc->name, m, pc->min, pc->max);
+        snprcat(rep->str, sizeof rep->str, "&%s %s - %d running (min %d, max %d)\n", mycolor, pc->name, m, pc->min,
+                pc->max);
         //		strlcat(q, p, sizeof q);
         big_free("procs (pc->name)", pc->name);
         big_free("procs (pc->machine)", pc->machine);
@@ -190,12 +165,10 @@ void procs(void)
     }
     running = 0;
     unique = 0;
-    while (plist)
-    {
+    while (plist) {
         pl = plist;
         plist = pl->next;
-        if (debug > 1)
-        {
+        if (debug > 1) {
             mrlog("Found %d instances of process '%s'", pl->count, pl->name);
         }
         running += pl->count;
@@ -205,12 +178,10 @@ void procs(void)
     }
 
     rep = preports_procs;
-    while (rep)
-    {
+    while (rep) {
         struct report *prev;
         b[0] = '\0';
-        snprcat(b, n, "%s\n\n%s\nTotal %d processes running (%d unique)\n",
-                now, rep->str, running, unique);
+        snprcat(b, n, "%s\n\n%s\nTotal %d processes running (%d unique)\n", now, rep->str, running, unique);
         mrsend(rep->machine, "procs", rep->color, b);
         prev = rep;
         rep = rep->next;
@@ -219,38 +190,22 @@ void procs(void)
     }
 }
 
-/* Works for NT 4 and up; requires psapi.dll */
-void PrintProcessNameAndID(DWORD processID)
-{
+void PrintProcessNameAndID(DWORD processID) {
     TCHAR szProcessName[MAX_PATH] = TEXT("<unknown>");
-
-    // Get a handle to the process.
-
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
-                                      PROCESS_VM_READ,
-                                  FALSE, processID);
-
-    // Get the process name.
-
-    if (NULL != hProcess)
-    {
-        HMODULE hMod;
-        DWORD cbNeeded;
-
-        if (EnumProcessModules(hProcess, &hMod, sizeof(hMod),
-                               &cbNeeded))
-        {
-            GetModuleBaseName(hProcess, hMod, szProcessName,
-                              sizeof(szProcessName) / sizeof(TCHAR));
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
+    if (NULL != hProcess) {
+        DWORD size = MAX_PATH;
+        if (QueryFullProcessImageName(hProcess, 0, szProcessName, &size)) {
+            TCHAR *lastSep = _tcsrchr(szProcessName, TEXT('\\'));
+            if (lastSep)
+                memmove(szProcessName, lastSep + 1, (_tcslen(lastSep + 1) + 1) * sizeof(TCHAR));
         }
+        CloseHandle(hProcess);
     }
-
     store_procname(szProcessName);
-    CloseHandle(hProcess);
 }
 
-static BOOL GetProcessList(void)
-{
+static BOOL GetProcessList(void) {
     // Get the list of process identifiers.
 
     DWORD aProcesses[1024], cbNeeded, cProcesses;

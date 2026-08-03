@@ -21,8 +21,25 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y make mingw-w64 binutils-mingw-w64 zip
 
+    - name: Verify tag matches Makefile version
+      if: github.event_name == 'release'
+      run: |
+        TAG="${GITHUB_REF_NAME#v}"
+        TAG_BASE="${TAG%%-*}"  # strip pre-release suffix (e.g. 1.0.0-rc -> 1.0.0)
+        MAKEFILE_VERSION=$(grep -m1 '^VERSION=' Makefile | cut -d= -f2)
+        if [ "$TAG_BASE" != "$MAKEFILE_VERSION" ]; then
+          echo "Tag version ($TAG) does not match Makefile version ($MAKEFILE_VERSION)"
+          exit 1
+        fi
+
     - name: Build MrBig
-      run: make all
+      run: |
+        TAG="${GITHUB_REF_NAME#v}"
+        if [ "${{ github.event_name }}" = "release" ] && [ -n "$TAG" ]; then
+          make all VERSION="$TAG"
+        else
+          make all
+        fi
 
     - name: Upload build artifacts
       if: github.event_name == 'release'

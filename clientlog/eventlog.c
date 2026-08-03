@@ -1,3 +1,4 @@
+#include "arena.h"
 #include "clientlog.h"
 #include <time.h>
 #include <winevt.h>
@@ -183,6 +184,7 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch)
         {
             clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %lfh.)", MAX_EVENT_AGE_MS / 3600000.0);
         }
+        clog_ArenaAppend(&scratch, "\n");
         clog_PopDefer(&scratch);
     }
 }

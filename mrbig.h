@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <tchar.h>
 #include "clientlog/clientlog.h"
 
 /* Never sleep for less than 10 seconds */
