@@ -1,8 +1,8 @@
 #define _WIN32_WINNT 0x0500
 
-#include <stdio.h>
 #include <windows.h>
 #include <winsock2.h>
+#include <stdio.h>
 
 #define BB_DISPLAY "127.0.0.1"
 #define BB_PORT    1984

@@ -1,6 +1,6 @@
 
-#include "disphelper.h"
 #include "mrbig.h"
+#include "disphelper.h"
 #include <wchar.h>
 
 #define HR_TRY(func)                                        \

@@ -1,9 +1,9 @@
 #include "clientlog.h"
 
+#include <windows.h>
 #include <pdh.h>
 #include <pdhmsg.h>
 #include <tlhelp32.h>
-#include <windows.h>
 
 #include <stdio.h>
 #include <string.h>

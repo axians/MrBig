@@ -318,8 +318,8 @@ extern "C"
 /* ===================================================================== */
 #ifdef DISPHELPER_INTERNAL_BUILD
 
-#include <stdarg.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <wchar.h>
 
 /* Macro to include or lose debug code. */

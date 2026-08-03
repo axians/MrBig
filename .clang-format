@@ -9,3 +9,4 @@ PointerAlignment: Right
 SpaceBeforeParens: ControlStatements
 AlignConsecutiveMacros: Consecutive
 AlignConsecutiveDeclarations: false
+SortIncludes: Never

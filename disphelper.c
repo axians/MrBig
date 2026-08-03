@@ -30,8 +30,8 @@
 
 #define DISPHELPER_INTERNAL_BUILD
 #include "disphelper.h"
-#include <assert.h>
 #include <math.h>
+#include <assert.h>
 
 /* ----- convert.h ----- */
 

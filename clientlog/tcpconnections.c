@@ -1,8 +1,8 @@
+#include <winsock2.h>
 #include "clientlog.h"
 #include <iphlpapi.h>
-#include <stdio.h>
 #include <tlhelp32.h>
-#include <winsock2.h>
+#include <stdio.h>
 
 /* TCP analyzer */
 

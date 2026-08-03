@@ -4,18 +4,18 @@
 
 /* All required headers */
 // #include <windows.h>
-#include "clientlog/clientlog.h"
-#include <ctype.h>
-#include <inttypes.h>
-#include <limits.h>
+#include <winsock2.h>
 #include <psapi.h>
-#include <stdint.h>
+#include <limits.h>
+#include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <tlhelp32.h>
+#include <stdint.h>
 #include <unistd.h>
-#include <winsock2.h>
+#include <ctype.h>
+#include <inttypes.h>
+#include "clientlog/clientlog.h"
 
 /* Never sleep for less than 10 seconds */
 #define SLEEP_MIN (10)
