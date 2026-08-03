@@ -5,7 +5,7 @@
     which only require PROCESS_QUERY_LIMITED_INFORMATION. This should avoid
     the false positive warning from Windows Defender.
 
-2026-07-21 Realese MrBig-0.26.6
+2026-07-21 Released MrBig-0.26.6
 
 2026-07-21 Update Changelog formatting to be more readable and consistent.
     use the ./format-changelog.sh script to format the changelog file.
