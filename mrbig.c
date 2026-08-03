@@ -1056,8 +1056,12 @@ void mrbig(void)
 		msgs();
 		check_chunks("after msgs test");
 
-		ntp_skew();
-		check_chunks("after ntp_skew test");
+		if (get_option("ntp", 0)) {
+			ntp_skew();
+			check_chunks("after ntp_skew test");
+		} else if (debug > 1) {
+			mrlog("ntp_skew disabled (enable with 'option ntp')");
+		}
 
 		procs();
 		check_chunks("after procs test");
