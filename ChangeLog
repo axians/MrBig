@@ -1,3 +1,7 @@
+2026-08-03 Compilation now sets the fileversion based on release tag
+    Sets the version based on release tag. Example: tag v0.0.1 -> MrBig 0.0.1
+    rc are made by naming the tag v0.0.1-rc and the fileversion will follow that.
+
 2026-08-03 Order kbs by install date
 
 2026-07-30 procs.c Windows Defender warning fix
