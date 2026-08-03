@@ -1,3 +1,5 @@
+2026-08-03 Order kbs by install date
+
 2026-07-30 procs.c Windows Defender warning fix
     Windows Defender was flagging the procs.c code as a trojan due to the
     OpenProcess needing the full PROCESS_QUERY_INFORMATION. This was a false positive, but to
