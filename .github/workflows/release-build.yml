@@ -22,7 +22,14 @@ jobs:
         sudo apt-get install -y make mingw-w64 binutils-mingw-w64 zip
 
     - name: Build MrBig
-      run: make all
+      run: |
+        TAG="${GITHUB_REF_NAME#v}"
+        if [ "${{ github.event_name }}" = "release" ] && [ -n "$TAG" ]; then
+          [ "${{ github.event.release.prerelease }}" = "true" ] && TAG="${TAG}-pre"
+          make all VERSION="$TAG"
+        else
+          make all
+        fi
 
     - name: Upload build artifacts
       if: github.event_name == 'release'
