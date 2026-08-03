@@ -81,8 +81,6 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     if (!CreatePipe(&hPipeOutputRead, &hPipeOutputWrite, &securityAttributes, 0)) {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 1.%#010x.)", status);
-        CloseHandle(hPipeOutputRead);
-        CloseHandle(hPipeOutputWrite);
         return status;
     }
 
@@ -104,8 +102,13 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     startInfo.hStdOutput = hPipeOutputWrite;
     startInfo.dwFlags |= STARTF_USESTDHANDLES;
 
+    // CreateProcess may modify lpCommandLine in-place; copy to a writable buffer.
+    CHAR cmdlineBuf[4096];
+    strncpy(cmdlineBuf, cmdline, sizeof(cmdlineBuf) - 1);
+    cmdlineBuf[sizeof(cmdlineBuf) - 1] = '\0';
+
     status = CreateProcess(NULL,
-                           cmdline,
+                           cmdlineBuf,
                            NULL,
                            NULL,
                            TRUE, // important, must inherit handles due to STARTF_USESTDHANDLES
@@ -120,8 +123,6 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, could not create process from '%s'. Error code 3.%#010x.)", cmdline, status);
         CloseHandle(hPipeOutputRead);
-        CloseHandle(procInfo.hProcess);
-        CloseHandle(procInfo.hThread);
         return status;
     }
 
@@ -167,8 +168,12 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
         }
     }
 
-    // Drain any output written between the last PeekNamedPipe and process exit.
-    while (ReadFile(hPipeOutputRead, readBuf, BUFREAD - 1, &readBufLen, NULL) && readBufLen > 0) {
+    // Drain remaining output non-blocking; a descended process may still hold the write
+    // end open after the original exits, so a blocking ReadFile could wait indefinitely.
+    DWORD available = 0;
+    while (PeekNamedPipe(hPipeOutputRead, NULL, 0, NULL, &available, NULL) && available > 0) {
+        DWORD toRead = min(available, (DWORD)(BUFREAD - 1));
+        if (!ReadFile(hPipeOutputRead, readBuf, toRead, &readBufLen, NULL) || readBufLen == 0) break;
         readBuf[readBufLen] = '\0';
         clog_ArenaAppend(&scratch, "%s", readBuf);
         written += readBufLen;
