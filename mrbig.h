@@ -3,54 +3,56 @@
 #define _WIN32_WINNT 0x0600
 
 /* All required headers */
-//#include <windows.h>
-#include <winsock2.h>
-#include <psapi.h>
+// #include <windows.h>
+#include "clientlog/clientlog.h"
+#include <ctype.h>
+#include <inttypes.h>
 #include <limits.h>
-#include <tlhelp32.h>
+#include <psapi.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stdint.h>
+#include <tlhelp32.h>
 #include <unistd.h>
-#include <ctype.h>
-#include <inttypes.h>
-#include "clientlog/clientlog.h"
+#include <winsock2.h>
 
 /* Never sleep for less than 10 seconds */
 #define SLEEP_MIN (10)
 
 /* from readperf.c */
-struct perfcounter {
-	char *instance;
-	uint64_t *value;
+struct perfcounter
+{
+    char *instance;
+    uint64_t *value;
 };
 extern struct perfcounter *read_perfcounters(DWORD object, DWORD *counters,
-			long long *perf_time, long long *perf_freq);
+                                             long long *perf_time, long long *perf_freq);
 extern void free_perfcounters(struct perfcounter *pc);
 extern void print_perfcounters(struct perfcounter *pc, int ncounters);
 
 /* from readlog.c */
-struct event {
-	time_t gtime, wtime;
-	long long record, id;
-	long type;
-	char *source;
-	char *message;
-	struct event *next;
+struct event
+{
+    time_t gtime, wtime;
+    long long record, id;
+    long type;
+    char *source;
+    char *message;
+    struct event *next;
 };
 extern struct event *read_log(char *log, int maxage, int fast);
 extern void free_log(struct event *e);
 extern void print_log(struct event *e);
 
 extern char mrmachine[256],
-bind_addr[256];
-//extern char mrdisplay[256];
+    bind_addr[256];
+// extern char mrdisplay[256];
 extern char cfgdir[256];
 extern char now[1024];
 extern char pickupdir[256];
-//extern int mrport;
-//extern int mrsleep;
+// extern int mrport;
+// extern int mrsleep;
 extern int bootyellow, bootred;
 extern double dfyellow, dfred;
 extern int memyellow, memred;
@@ -88,7 +90,7 @@ extern void svcs(void);
 extern void wmi(void);
 extern int service_main(int argc, char **argv);
 extern void mrbig(void);
-//extern void SvcDebugOut(LPSTR, DWORD);
+// extern void SvcDebugOut(LPSTR, DWORD);
 extern void ext_tests(int is_filter_enabled);
 extern void clear_cfg(void);
 extern void add_cfg(char *name, char *cfg);

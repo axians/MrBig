@@ -38,7 +38,8 @@ Most active processes
 00.01%	services (0x29 [41])
 */
 
-static long get_uptime(void) {
+static long get_uptime(void)
+{
     int object = 2;
     DWORD counters[] = {674, 0};
     LONG result;
@@ -48,9 +49,12 @@ static long get_uptime(void) {
     if (debug > 1)
         mrlog("get_uptime()");
     pc = read_perfcounters(object, counters, &perf_time, &perf_freq);
-    if (pc) {
+    if (pc)
+    {
         result = (perf_time - pc[0].value[0]) / perf_freq;
-    } else {
+    }
+    else
+    {
         mrlog("Can't read_perfcounters(2, 674)");
         result = 0;
     }
@@ -60,20 +64,23 @@ static long get_uptime(void) {
     return result;
 }
 
-static long pscount(void) {
+static long pscount(void)
+{
     /* NT4 and up, requires psapi.dll */
     DWORD aProcesses[1024], cbNeeded;
 
     if (debug > 1)
         mrlog("pscount()");
-    if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded)) {
+    if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
+    {
         mrlog("Can't EnumProcesses");
         return 0;
     }
     return cbNeeded / sizeof aProcesses[0];
 }
 
-static long users(void) {
+static long users(void)
+{
     DWORD object = 330;
     DWORD counters[] = {314, 0};
     struct perfcounter *pc;
@@ -83,9 +90,12 @@ static long users(void) {
         mrlog("users()");
 
     pc = read_perfcounters(object, counters, NULL, NULL);
-    if (pc) {
+    if (pc)
+    {
         result = pc[0].value[0];
-    } else {
+    }
+    else
+    {
         mrlog("Can't read_perfcounters(330, 314)");
         result = 0;
     }
@@ -93,7 +103,8 @@ static long users(void) {
     return result;
 }
 
-static int get_load(int version) {
+static int get_load(int version)
+{
     /* to measure the sample period */
     /* in units of 1 second */
     static time_t time0 = 0;
@@ -111,21 +122,28 @@ static int get_load(int version) {
     if (debug > 1)
         mrlog("get_load(%d)", version);
 
-    if (version >= 5) { /* W2K and up */
+    if (version >= 5)
+    { /* W2K and up */
         DWORD counters[] = {6, 0};
         perfc = read_perfcounters(238, counters, NULL, NULL);
         if (perfc == NULL)
             return 0;
-        for (i = 0; perfc[0].instance; i++) {
+        for (i = 0; perfc[0].instance; i++)
+        {
             if (!strcmp(perfc[i].instance, "_Total"))
                 break;
         }
-        if (perfc[i].instance == NULL) {
+        if (perfc[i].instance == NULL)
+        {
             proc1 = 0; /* No data found */
-        } else {
+        }
+        else
+        {
             proc1 = perfc[i].value[0];
         }
-    } else { /* NT4 */
+    }
+    else
+    { /* NT4 */
         DWORD counters[] = {240, 0};
         perfc = read_perfcounters(2, counters, NULL, NULL);
         if (perfc == NULL)
@@ -133,10 +151,13 @@ static int get_load(int version) {
         proc1 = perfc->value[0];
     }
     time1 = time(NULL);
-    if (proc0 && time1 > time0) {
+    if (proc0 && time1 > time0)
+    {
         /* we need two samples! */
         load = 100 - (proc1 - proc0) / 100000 / (time1 - time0);
-    } else {
+    }
+    else
+    {
         load = 0;
     }
     time0 = time1;
@@ -148,7 +169,8 @@ static int get_load(int version) {
     return load;
 }
 
-static void append_limits(char *a, size_t n) {
+static void append_limits(char *a, size_t n)
+{
     snprcat(a, n, "\nLimits:\n");
     snprcat(a, n, "Yellow uptime: %d minutes\n", bootyellow);
     snprcat(a, n, "Red uptime: %d minutes\n", bootred);
@@ -156,7 +178,8 @@ static void append_limits(char *a, size_t n) {
     snprcat(a, n, "Red CPU: %d%%\n", cpured);
 }
 
-void cpu(void) {
+void cpu(void)
+{
     char b[5000];
     int n = sizeof b;
     char r[1000];
@@ -175,7 +198,8 @@ void cpu(void) {
     if (debug > 1)
         mrlog("cpu(%p, %d)", b, n);
 
-    if (get_option("no_cpu", 0)) {
+    if (get_option("no_cpu", 0))
+    {
         mrsend(mrmachine, "cpu", "clear", "option no_cpu\n");
         return;
     }
@@ -208,7 +232,8 @@ void cpu(void) {
 
     ZeroMemory(&osvi, sizeof osvi);
     osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    if (!GetVersionEx(&osvi) || osvi.dwPlatformId != VER_PLATFORM_WIN32_NT) {
+    if (!GetVersionEx(&osvi) || osvi.dwPlatformId != VER_PLATFORM_WIN32_NT)
+    {
         /* Failed, boo hiss */
         b[0] = '\0';
         snprcat(b, n,
@@ -223,23 +248,32 @@ void cpu(void) {
     statex.dwLength = sizeof statex;
     // GlobalMemoryStatus(&stat);
     GlobalMemoryStatusEx(&statex);
-    if (um < bootred) {
+    if (um < bootred)
+    {
         snprcat(r, sizeof r, "&red Machine recently rebooted\n");
         color = "red";
-    } else if (um < bootyellow) {
+    }
+    else if (um < bootyellow)
+    {
         snprcat(r, sizeof r, "&yellow Machine recently rebooted\n");
         color = "yellow";
     }
     up[0] = '\0';
-    if (um < 24 * 60) {
+    if (um < 24 * 60)
+    {
         snprcat(up, sizeof up, "%02d:%02d", um / 60, um % 60);
-    } else {
+    }
+    else
+    {
         snprcat(up, sizeof up, "%d days", um / (24 * 60));
     }
     load = get_load(osvi.dwMajorVersion);
-    if (load >= cpured) {
+    if (load >= cpured)
+    {
         color = "red";
-    } else if (load >= cpuyellow && !strcmp(color, "green")) {
+    }
+    else if (load >= cpuyellow && !strcmp(color, "green"))
+    {
         color = "yellow";
     }
 #if 0
