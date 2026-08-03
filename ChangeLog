@@ -1,3 +1,10 @@
+2026-07-30 procs.c Windows Defender warning fix
+    Windows Defender was flagging the procs.c code as a trojan due to the
+    OpenProcess needing the full PROCESS_QUERY_INFORMATION. This was a false positive, but to
+    avoid the warning, switched to using QueryFullProcessImageName instead
+    which only require PROCESS_QUERY_LIMITED_INFORMATION. This should avoid
+    the false positive warning from Windows Defender.
+
 2026-07-21 Realese MrBig-0.26.6
 
 2026-07-21 Update Changelog formatting to be more readable and consistent.
