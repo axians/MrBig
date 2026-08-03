@@ -3,7 +3,8 @@
 
 #define CERTIFICATES_ROW_SIZE (1024)
 
-typedef struct {
+typedef struct
+{
     DWORD PublicKeySize;
     CHAR *Subject;
     CHAR *FriendlyName;
@@ -17,22 +18,29 @@ typedef struct {
     CHAR *SerialNumber;
 } Certificate;
 
-LPSTR certificates_PrettyEKUPurposes(CHAR **eku, LPSTR out, size_t outSize) {
-    if (eku != NULL) {
+LPSTR certificates_PrettyEKUPurposes(CHAR **eku, LPSTR out, size_t outSize)
+{
+    if (eku != NULL)
+    {
         DWORD i = 0, written = 0;
-        while (eku[i] != NULL) {
-            if (i != 0 && outSize - written > 1) {
+        while (eku[i] != NULL)
+        {
+            if (i != 0 && outSize - written > 1)
+            {
                 out[written++] = ',';
             }
             written += snprintf(&out[written], outSize - written, "%s", eku[i++]);
         }
-    } else {
+    }
+    else
+    {
         snprintf(out, outSize, "None");
     }
     return out;
 }
 
-LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
+LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out)
+{
     CHAR eku[64], validFromBuf[64], validToBuf[64];
     SYSTEMTIME validFrom, validTo;
     FileTimeToSystemTime(&c->NotBefore, &validFrom);
@@ -63,10 +71,12 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
     return out;
 }
 
-size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
+size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize)
+{
     size_t written = 0;
     const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
-    if (!oIDInfo) {
+    if (!oIDInfo)
+    {
         // Unknown OID;
         out[0] = '\0';
         return written;
@@ -74,7 +84,8 @@ size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
 
     LOG_DEBUG("\tcertificates.c: \t\tLookup of OID %s successful, getting readable name.", oID);
     written = wcstombs(out, oIDInfo->pwszName, outSize - 1);
-    if (written > outSize || written <= 0) {
+    if (written > outSize || written <= 0)
+    {
         LOG_DEBUG("\tcertificates.c: \t\tUnreadable character in name.", oID);
         written = 0;
     }
@@ -83,11 +94,14 @@ size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
     return written;
 }
 
-CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
+CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a)
+{
     CHAR **res = NULL;
-    for (DWORD i = 0; i < ctx->cExtension; i++) {
+    for (DWORD i = 0; i < ctx->cExtension; i++)
+    {
         CERT_EXTENSION *ext = &ctx->rgExtension[i];
-        if (strcmp(ext->pszObjId, szOID_ENHANCED_KEY_USAGE) != 0) continue;
+        if (strcmp(ext->pszObjId, szOID_ENHANCED_KEY_USAGE) != 0)
+            continue;
 
         LOG_DEBUG("\tcertificates.c: \t\tFound EKU purposes OID, decrypting object.");
         DWORD decodedSize = 0;
@@ -96,7 +110,8 @@ CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
         BYTE decodedData[decodedSize];
         WINBOOL success = CryptDecodeObjectEx(X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE, ext->Value.pbData, ext->Value.cbData, CRYPT_DECODE_NOCOPY_FLAG, NULL, decodedData, &decodedSize);
 
-        if (!success) {
+        if (!success)
+        {
             res = clog_ArenaAlloc(a, CHAR *, 2);
             res[0] = clog_ArenaAlloc(a, CHAR, 32);
             sprintf(res[0], "<Error with code %#010lx>", GetLastError());
@@ -105,13 +120,15 @@ CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
         }
         CTL_USAGE *p = ((CTL_USAGE *)decodedData);
         res = clog_ArenaAlloc(a, CHAR *, p->cUsageIdentifier + 1);
-        for (DWORD j = 0; j < p->cUsageIdentifier; j++) {
+        for (DWORD j = 0; j < p->cUsageIdentifier; j++)
+        {
             CHAR *oID = p->rgpszUsageIdentifier[j];
             CHAR purposeBuf[128];
             LOG_DEBUG("\tcertificates.c: \t\tGetting OID info %lu.", j);
             size_t purposeLen = certificates_GetOIDName(oID, purposeBuf, 128);
 
-            if (purposeLen <= 0) {
+            if (purposeLen <= 0)
+            {
                 purposeLen = sprintf(purposeBuf, "Unknown purpose (%s)", oID);
             }
 
@@ -127,11 +144,13 @@ CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
     return res;
 }
 
-WINBOOL CertCloseStoreWrapper(HCERTSTORE h) {
+WINBOOL CertCloseStoreWrapper(HCERTSTORE h)
+{
     return CertCloseStore(h, 0);
 }
 
-void clog_certificates(clog_Arena scratch) {
+void clog_certificates(clog_Arena scratch)
+{
     const LPSTR storeLocation = "MY";
 
     clog_ArenaAppend(&scratch, "[certificates]");
@@ -147,7 +166,8 @@ void clog_certificates(clog_Arena scratch) {
     CHAR certificateBuf[CERTIFICATES_ROW_SIZE];
     DWORD numCertificates = 0;
 
-    while ((ctx = CertEnumCertificatesInStore(hStore, ctx))) {
+    while ((ctx = CertEnumCertificatesInStore(hStore, ctx)))
+    {
         LOG_DEBUG("\tcertificates.c: Start of certificate enumeration.");
 
         clog_Defer(&scratch, (void *)ctx, RETURN_INT, &CertFreeCertificateContext);
@@ -190,7 +210,8 @@ void clog_certificates(clog_Arena scratch) {
         size_t algoLen = certificates_GetOIDName(ctx->pCertInfo->SignatureAlgorithm.pszObjId, algoBuf, 64);
         if (algoLen <= 0)
             c.SignatureAlgorithm = "<unknown>";
-        else {
+        else
+        {
             CHAR *algo = clog_ArenaAlloc(&scratch, CHAR, algoLen + 1);
             memcpy(algo, algoBuf, algoLen);
             algo[algoLen] = '\0';
@@ -201,9 +222,11 @@ void clog_certificates(clog_Arena scratch) {
         BYTE fingerprintHash[64] = {0};
         DWORD fingeprintSize = sizeof(fingerprintHash);
         CHAR fingerprintHex[128] = "";
-        if (CertGetCertificateContextProperty(ctx, CERT_HASH_PROP_ID, fingerprintHash, &fingeprintSize)) {
+        if (CertGetCertificateContextProperty(ctx, CERT_HASH_PROP_ID, fingerprintHash, &fingeprintSize))
+        {
             size_t written = 0;
-            for (int i = 0; i < fingeprintSize; i++) {
+            for (int i = 0; i < fingeprintSize; i++)
+            {
                 written += sprintf(&fingerprintHex[written], "%02x", fingerprintHash[i]);
             }
         }
@@ -212,7 +235,8 @@ void clog_certificates(clog_Arena scratch) {
         // Serial Number
         CHAR serialHex[128] = "";
         size_t serialWritten = 0;
-        for (int i = ctx->pCertInfo->SerialNumber.cbData - 1; i >= 0; i--) {
+        for (int i = ctx->pCertInfo->SerialNumber.cbData - 1; i >= 0; i--)
+        {
             serialWritten += sprintf(&serialHex[serialWritten], "%02x", ctx->pCertInfo->SerialNumber.pbData[i]);
         }
         c.SerialNumber = serialHex;
@@ -229,14 +253,16 @@ void clog_certificates(clog_Arena scratch) {
         LOG_DEBUG("\tcertificates.c: \tPrinted cert to buffer.");
         clog_IgnorePopDefer(&scratch);
     }
-    if (numCertificates == 0) {
+    if (numCertificates == 0)
+    {
         clog_ArenaAppend(&scratch, "\n(No certificates found in store '%s')", storeLocation);
     }
     LOG_DEBUG("\tcertificates.c: End.");
 }
 
 #ifdef STANDALONE
-int main(int argc, TCHAR *argv[]) {
+int main(int argc, TCHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     clog_certificates(st->Memory);
     printf("%s", st->Start);

@@ -5,11 +5,12 @@
 #include <wtypesbase.h>
 
 #define STR__IMPL(x) #x
-#define STR(x) STR__IMPL(x) // indirection to expand macros in x
-#define lengthof(x) (sizeof(x) / sizeof(*(x)))
+#define STR(x)       STR__IMPL(x) // indirection to expand macros in x
+#define lengthof(x)  (sizeof(x) / sizeof(*(x)))
 
 #define LOG_DEBUG(...) \
-    if (clog_mrlog) clog_mrlog("\n" __VA_ARGS__);
+    if (clog_mrlog)    \
+        clog_mrlog("\n" __VA_ARGS__);
 extern void (*clog_mrlog)(char *fmt, ...);
 
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...));
@@ -17,7 +18,8 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 /* utils */
 LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize);
 LPSTR clog_utils_PrettyBytes(ULONGLONG bytes, DWORD target, LPSTR out);
-enum clog_utils_PrettyTimestampFlags {
+enum clog_utils_PrettyTimestampFlags
+{
     clog_utils_TIMESTAMP_DATE = 1,
     clog_utils_TIMESTAMP_CLOCK,
     clog_utils_TIMESTAMP_DATETIME,

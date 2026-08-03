@@ -1,20 +1,24 @@
 #include "clientlog.h"
 
-#define RUN(f, args...)                                            \
-    do {                                                           \
-        if (clog_mrlog) clog_mrlog("\nClientlog running " #f "(" #args ")"); \
-        f(args);                                                   \
+#define RUN(f, args...)                                          \
+    do                                                           \
+    {                                                            \
+        if (clog_mrlog)                                          \
+            clog_mrlog("\nClientlog running " #f "(" #args ")"); \
+        f(args);                                                 \
     } while (0)
 
 void (*clog_mrlog)(char *fmt, ...) = NULL;
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...)) {
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...))
+{
     clog_mrlog = mrlog;
     LOG_DEBUG("Clientlog start");
     clog_ArenaState *arenaState = clog_ArenaMake(0x100000); // 1 MB
     clog_Arena arena = arenaState->Memory;
 
     LOG_DEBUG("Clientlog setup");
-    clog_DeferError(&arena, errorcode) {
+    clog_DeferError(&arena, errorcode)
+    {
         LOG_DEBUG("Clientlog error, code %d", errorcode);
         LPSTR errormessage = "\n(Clientlog ran into a problem, error code %d)";
         sprintf((char *)arenaState->CurrentStart - 1 - strlen(errormessage), errormessage, errorcode);
@@ -116,18 +120,21 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 }
 
 #ifdef CLIENTLOGEXE
-void sendfn(char *machine, char *message) {
+void sendfn(char *machine, char *message)
+{
     printf("%s", message);
 }
 
-void logfn(char *fmt, ...) {
+void logfn(char *fmt, ...)
+{
     va_list vargs;
     va_start(vargs, fmt);
     vprintf(fmt, vargs);
     va_end(vargs);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     clientlog("test", &sendfn, &logfn);
     return 0;
 }

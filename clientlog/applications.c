@@ -1,82 +1,105 @@
 #include "clientlog.h"
 
-#define MAX_APPLICATION_NAME (64)
-#define MAX_APPLICATION_VERSION (64)
+#define MAX_APPLICATION_NAME      (64)
+#define MAX_APPLICATION_VERSION   (64)
 #define MAX_APPLICATION_PUBLISHER (64)
 #define MAX_APPLICATIONS_ROW_SIZE (16 + MAX_APPLICATION_NAME + MAX_APPLICATION_VERSION + MAX_APPLICATION_PUBLISHER)
 
 #define MAX_REG_KEY_NAME (255)
 
-typedef enum {
+typedef enum
+{
     x86_32 = 0,
     x86_64,
 } applications_Arch;
 
-LPCSTR applications_PrettyArch(applications_Arch a) {
+LPCSTR applications_PrettyArch(applications_Arch a)
+{
     return a == x86_32 ? "x86-32" : "x64";
 }
 
-typedef struct {
+typedef struct
+{
     CHAR Name[MAX_APPLICATION_NAME];
     CHAR Version[MAX_APPLICATION_VERSION];
     CHAR Publisher[MAX_APPLICATION_PUBLISHER];
     applications_Arch Architecture;
 } applications_Application;
 
-typedef struct _ApplicationTree {
+typedef struct _ApplicationTree
+{
     applications_Application Value;
     struct _ApplicationTree *Left;
     struct _ApplicationTree *Right;
 } applications_ApplicationTree;
 
-LPCSTR applications_PrettyApplication(applications_Application *a, LPSTR out) {
+LPCSTR applications_PrettyApplication(applications_Application *a, LPSTR out)
+{
     snprintf(out, MAX_APPLICATIONS_ROW_SIZE, "%s\t%s\t%s\t%s", a->Name, a->Version, a->Publisher, applications_PrettyArch(a->Architecture));
     return out;
 }
 
 // Returns root, or t if root is NULL
-applications_ApplicationTree *applications_TreeInsert(applications_ApplicationTree *root, applications_ApplicationTree *t) {
-    if (root == NULL) {
+applications_ApplicationTree *applications_TreeInsert(applications_ApplicationTree *root, applications_ApplicationTree *t)
+{
+    if (root == NULL)
+    {
         return t;
     }
 
     int tComp = strncmp(t->Value.Name, root->Value.Name, MAX_APPLICATION_NAME);
     tComp = tComp ? tComp : (int)(t->Value.Architecture - root->Value.Architecture);
     applications_ApplicationTree **direction;
-    if (tComp < 0) {
+    if (tComp < 0)
+    {
         direction = &root->Left;
-    } else if (tComp > 0) {
+    }
+    else if (tComp > 0)
+    {
         direction = &root->Right;
-    } else {
-        if (root->Left == NULL) {
+    }
+    else
+    {
+        if (root->Left == NULL)
+        {
             direction = &root->Left;
-        } else {
+        }
+        else
+        {
             direction = &root->Right;
         }
     }
-    if (*direction == NULL) {
+    if (*direction == NULL)
+    {
         *direction = t;
-    } else {
+    }
+    else
+    {
         applications_TreeInsert(*direction, t);
     }
     return root;
 }
 
-void applications_TreeTraverseAppend(applications_ApplicationTree *t, clog_Arena *a) {
-    if (t->Left != NULL) {
+void applications_TreeTraverseAppend(applications_ApplicationTree *t, clog_Arena *a)
+{
+    if (t->Left != NULL)
+    {
         applications_TreeTraverseAppend(t->Left, a);
     }
     CHAR applicationBuf[MAX_APPLICATIONS_ROW_SIZE];
     clog_ArenaAppend(a, "\n%s", applications_PrettyApplication(&t->Value, applicationBuf));
-    if (t->Right != NULL) {
+    if (t->Right != NULL)
+    {
         applications_TreeTraverseAppend(t->Right, a);
     }
 }
 
-applications_ApplicationTree *applications_InsertApplications(applications_ApplicationTree *root, applications_Arch arch, clog_Arena *a) {
+applications_ApplicationTree *applications_InsertApplications(applications_ApplicationTree *root, applications_Arch arch, clog_Arena *a)
+{
     HKEY hKey;
     DWORD openStatus;
-    switch (arch) {
+    switch (arch)
+    {
     case x86_32:
         openStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", 0, KEY_READ /*| KEY_WOW64_32KEY*/, &hKey);
         break;
@@ -88,7 +111,8 @@ applications_ApplicationTree *applications_InsertApplications(applications_Appli
         return root;
     }
 
-    if (openStatus != ERROR_SUCCESS) {
+    if (openStatus != ERROR_SUCCESS)
+    {
         return root;
     }
 
@@ -101,7 +125,8 @@ applications_ApplicationTree *applications_InsertApplications(applications_Appli
 
     DWORD displayNameBufSize = MAX_PATH, displayVersionBufSize = 255, publisherBufSize = 255, bufsize;
     CHAR displayName[MAX_PATH], displayVersion[displayVersionBufSize], publisherName[publisherBufSize];
-    while (enumStatus == ERROR_SUCCESS) {
+    while (enumStatus == ERROR_SUCCESS)
+    {
         bufsize = displayNameBufSize;
         DWORD nameStatus = RegGetValueA(hKey, regKeyName, "DisplayName", RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ | RRF_RT_REG_EXPAND_SZ, NULL, displayName, &bufsize);
 
@@ -111,7 +136,8 @@ applications_ApplicationTree *applications_InsertApplications(applications_Appli
         bufsize = publisherBufSize;
         DWORD publisherStatus = RegGetValueA(hKey, regKeyName, "Publisher", RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ | RRF_RT_REG_EXPAND_SZ, NULL, publisherName, &bufsize);
 
-        if (versionStatus == ERROR_SUCCESS || publisherStatus == ERROR_SUCCESS) {
+        if (versionStatus == ERROR_SUCCESS || publisherStatus == ERROR_SUCCESS)
+        {
             applications_ApplicationTree *app = clog_ArenaAlloc(a, applications_ApplicationTree, 1);
 
             CHAR *name = nameStatus == ERROR_SUCCESS ? displayName : regKeyName;
@@ -134,7 +160,8 @@ applications_ApplicationTree *applications_InsertApplications(applications_Appli
     return root;
 }
 
-void clog_applications(clog_Arena scratch) {
+void clog_applications(clog_Arena scratch)
+{
     applications_ApplicationTree *applications = NULL;
     applications = applications_InsertApplications(applications, x86_32, &scratch);
     clog_PopDeferAll(&scratch);
@@ -142,15 +169,19 @@ void clog_applications(clog_Arena scratch) {
     clog_PopDeferAll(&scratch);
 
     clog_ArenaAppend(&scratch, "[applications]");
-    if (applications != NULL) {
+    if (applications != NULL)
+    {
         applications_TreeTraverseAppend(applications, &scratch);
-    } else {
+    }
+    else
+    {
         clog_ArenaAppend(&scratch, "\n(No applications found)");
     }
 }
 
 #ifdef STANDALONE
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     clog_applications(st->Memory);
     printf((char *)st->Start);

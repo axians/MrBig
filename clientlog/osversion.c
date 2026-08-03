@@ -1,6 +1,7 @@
 #include "clientlog.h"
 
-typedef struct {
+typedef struct
+{
     CHAR name[64];
     CHAR version[16];
     WORD buildNumber;
@@ -59,14 +60,16 @@ const osversion_WindowsVersion WindowsServerVersions[] = {
     {"Windows Server", "unknown version", 26101},
 };
 
-void clog_osversion(clog_Arena scratch) {
+void clog_osversion(clog_Arena scratch)
+{
     HKEY hKey;
     LONG productStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &hKey);
     CHAR productName[64];
     DWORD typeProduct;
     DWORD lenProduct = 64;
     DWORD ubr = 0;
-    if (productStatus == ERROR_SUCCESS) {
+    if (productStatus == ERROR_SUCCESS)
+    {
         productStatus = RegGetValue(hKey, NULL, "productName", RRF_RT_REG_SZ, &typeProduct, productName, &lenProduct);
         DWORD typeUbr;
         DWORD lenUbr = sizeof(DWORD);
@@ -80,17 +83,22 @@ void clog_osversion(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[osversion]");
     OSVERSIONINFOEXW ovi = {0};
     ovi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-    if (GetVersionExW((LPOSVERSIONINFOW)&ovi)) {
+    if (GetVersionExW((LPOSVERSIONINFOW)&ovi))
+    {
         osVersionInfo = ovi;
         versionSuccess = TRUE;
     }
 
     CHAR osName[64];
-    if (!versionSuccess) {
+    if (!versionSuccess)
+    {
         CHAR *result;
-        if (productStatus != ERROR_SUCCESS) {
+        if (productStatus != ERROR_SUCCESS)
+        {
             result = "\nNot supported";
-        } else {
+        }
+        else
+        {
             result = productName;
         }
 
@@ -101,8 +109,8 @@ void clog_osversion(clog_Arena scratch) {
     // START Remove this if it becomes out of date. It is only used to get the version member of osversion_WindowsVersion
     BOOL isPersonalComputer = osVersionInfo.wProductType == VER_NT_WORKSTATION;
     const osversion_WindowsVersion *versionList = isPersonalComputer
-                                                   ? WindowsPersonalVersions
-                                                   : WindowsServerVersions;
+                                                      ? WindowsPersonalVersions
+                                                      : WindowsServerVersions;
     size_t versionListSize = isPersonalComputer
                                  ? sizeof WindowsPersonalVersions
                                  : sizeof WindowsServerVersions;
@@ -113,14 +121,20 @@ void clog_osversion(clog_Arena scratch) {
     size_t nCurr = nVersions / 2;
     size_t nLow = 0;
     size_t nHigh = nVersions;
-    while (nLow < nHigh - 1) {
-        if (build < versionList[nCurr].buildNumber) {
+    while (nLow < nHigh - 1)
+    {
+        if (build < versionList[nCurr].buildNumber)
+        {
             nHigh = nCurr;
             nCurr = (nLow + nHigh) / 2;
-        } else if (build > versionList[nCurr].buildNumber) {
+        }
+        else if (build > versionList[nCurr].buildNumber)
+        {
             nLow = nCurr + 1;
             nCurr = (nLow + nHigh) / 2;
-        } else {
+        }
+        else
+        {
             break;
         }
     }
@@ -128,15 +142,20 @@ void clog_osversion(clog_Arena scratch) {
     // END Remove
 
     int osNameWritten = 0;
-    if (productStatus == ERROR_SUCCESS) {
+    if (productStatus == ERROR_SUCCESS)
+    {
         osNameWritten = snprintf(osName, 64, "%s", productName);
-    } else {
+    }
+    else
+    {
         osNameWritten = snprintf(osName, 64, "%s", win.name);
     }
-    if (osVersionInfo.szCSDVersion[0] != '\0') {
+    if (osVersionInfo.szCSDVersion[0] != '\0')
+    {
         CHAR servicePack[32];
         size_t servicePackLen = wcstombs(servicePack, osVersionInfo.szCSDVersion, 32);
-        if (servicePackLen > 31) servicePack[31] = '\0';
+        if (servicePackLen > 31)
+            servicePack[31] = '\0';
         snprintf(&osName[osNameWritten], 64 - osNameWritten, " %s", servicePack);
     }
 
@@ -179,7 +198,8 @@ void clog_osversion(clog_Arena scratch) {
 }
 
 #ifdef STANDALONE
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     clog_osversion(st->Memory);
     printf("%s", st->Start);

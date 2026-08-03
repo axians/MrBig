@@ -1,13 +1,15 @@
 #include "clientlog.h"
 
-void clog_bios(clog_Arena scratch) {
+void clog_bios(clog_Arena scratch)
+{
 
     clog_ArenaAppend(&scratch, "[bios]\n");
     HKEY hKey;
     LSTATUS status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\BIOS", 0, KEY_READ, &hKey);
     clog_Defer(&scratch, hKey, RETURN_LONG, &RegCloseKey);
 
-    if (status != ERROR_SUCCESS) {
+    if (status != ERROR_SUCCESS)
+    {
         clog_ArenaAppend(&scratch, "(Unable to open registry key 'HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\BIOS')");
         return;
     }
@@ -40,7 +42,8 @@ void clog_bios(clog_Arena scratch) {
 }
 
 #ifdef STANDALONE
-int main(int argc, CHAR *argv[]) {
+int main(int argc, CHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x20000);
     clog_reboots(5, st->Memory);
     printf("%s", st->Start);

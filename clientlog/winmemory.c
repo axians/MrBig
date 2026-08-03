@@ -2,31 +2,37 @@
 #include <math.h>
 #include <pdh.h>
 
-double winmemory_pagefilepercent() {
+double winmemory_pagefilepercent()
+{
     double res = -1.0;
     PDH_HQUERY queryRes = INVALID_HANDLE_VALUE;
     PDH_HCOUNTER pagefileTotalPercentCounter;
     DWORD errorCode;
 
     errorCode = PdhOpenQuery(NULL, 0, &queryRes);
-    if (errorCode != ERROR_SUCCESS) goto Cleanup;
+    if (errorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     errorCode = PdhAddEnglishCounter(queryRes, "\\Paging File(_Total)\\% Usage", 0, &pagefileTotalPercentCounter);
-    if (errorCode != ERROR_SUCCESS) goto Cleanup;
+    if (errorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     errorCode = PdhCollectQueryData(queryRes);
-    if (errorCode != ERROR_SUCCESS) goto Cleanup;
+    if (errorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     PDH_FMT_COUNTERVALUE pagefileTotalPercentCounterValue;
     PdhGetFormattedCounterValue(pagefileTotalPercentCounter, PDH_FMT_DOUBLE, NULL, &pagefileTotalPercentCounterValue);
     res = pagefileTotalPercentCounterValue.doubleValue;
-    
+
 Cleanup:
-    if (queryRes != INVALID_HANDLE_VALUE) PdhCloseQuery(queryRes);
+    if (queryRes != INVALID_HANDLE_VALUE)
+        PdhCloseQuery(queryRes);
     return res;
 }
 
-void clog_winmemory(clog_Arena scratch) {
+void clog_winmemory(clog_Arena scratch)
+{
     MEMORYSTATUSEX memoryStatus;
     memoryStatus.dwLength = sizeof memoryStatus;
     GlobalMemoryStatusEx(&memoryStatus);
@@ -48,26 +54,30 @@ void clog_winmemory(clog_Arena scratch) {
     ULONGLONG freePagefileBytes = 0;
     ULONGLONG usedPagefileBytes = 0;
     DOUBLE percentPagefileUsed = winmemory_pagefilepercent();
-    if (percentPagefileUsed >= 0) {
+    if (percentPagefileUsed >= 0)
+    {
         usedPagefileBytes = (ULONGLONG)floor(percentPagefileUsed / 100.0 * (double)totalPagefileBytes);
         freePagefileBytes = totalPagefileBytes - usedPagefileBytes;
     }
 
     clog_ArenaAppend(&scratch, "[winmemory]");
     clog_ArenaAppend(&scratch, "\n%8s  %-13s\t%-15s\t%-15s\t%-15s", "", "TOTAL", "USED", "FREE", "MEMORY USAGE");
-    
+
     clog_ArenaAppend(&scratch, "\n%8s  %-13s\t%-15s\t%-15s\t%-.2lf%%",
-                    "Physical",
+                     "Physical",
                      clog_utils_PrettyBytes(totalPhysicalBytes, 0, totalPhys),
                      clog_utils_PrettyBytes(usedPhysicalBytes, 2, usedPhys),
                      clog_utils_PrettyBytes(freePhysicalBytes, 2, freePhys),
                      percentPhysicalUsed);
 
-    if (percentPagefileUsed < 0) {
+    if (percentPagefileUsed < 0)
+    {
         clog_ArenaAppend(&scratch, "\n%8s  %-13s\t (Pagefile usage not available)",
-                        "Pagefile",
+                         "Pagefile",
                          clog_utils_PrettyBytes(totalPagefileBytes, 0, totalPage));
-    } else {
+    }
+    else
+    {
         clog_ArenaAppend(&scratch, "\n%8s  %-13s\t%-15s\t%-15s\t%-.2lf%%", "Pagefile",
                          clog_utils_PrettyBytes(totalPagefileBytes, 0, totalPage),
                          clog_utils_PrettyBytes(usedPagefileBytes, 2, usedPage),
@@ -84,7 +94,8 @@ void clog_winmemory(clog_Arena scratch) {
 }
 
 #ifdef STANDALONE
-int main(int argc, TCHAR *argv[]) {
+int main(int argc, TCHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     clog_winmemory(st->Memory);
     printf("%s", st->Start);

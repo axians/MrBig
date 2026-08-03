@@ -14,14 +14,16 @@ char *GetDomainFromFqdn(const char *fqdn)
     return _strdup(dot + 1);
 }
 
-void clog_domain(clog_Arena scratch) {
+void clog_domain(clog_Arena scratch)
+{
     clog_ArenaAppend(&scratch, "[domain]");
 
     LPWSTR nameBuf = NULL;
     NETSETUP_JOIN_STATUS joinStatus;
     NET_API_STATUS status = NetGetJoinInformation(NULL, &nameBuf, &joinStatus);
 
-    if (status != NERR_Success) {
+    if (status != NERR_Success)
+    {
         clog_ArenaAppend(&scratch, "\n(Unable to get domain information)");
         return;
     }
@@ -48,7 +50,8 @@ void clog_domain(clog_Arena scratch) {
     ULONG len = ARRAYSIZE(upn);
 
     const CHAR *upnDomain = "";
-    if (GetUserNameExA(NameUserPrincipal, upn, &len)) {
+    if (GetUserNameExA(NameUserPrincipal, upn, &len))
+    {
         CHAR *at = strchr(upn, '@');
         if (at)
             upnDomain = at + 1;
@@ -57,13 +60,13 @@ void clog_domain(clog_Arena scratch) {
     if (strlen(upnDomain) == 0)
         upnDomain = GetDomainFromFqdn(fqdn);
 
-
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "UPNDomain", upnDomain);
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "FQDN", fqdn);
 }
 
 #ifdef STANDALONE
-int main(int argc, CHAR *argv[]) {
+int main(int argc, CHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x1000);
     clog_domain(st->Memory);
     printf("%s", st->Start);

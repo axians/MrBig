@@ -5,22 +5,28 @@
 #define TIME_BUF_SIZE 64
 #define REG_VAL_SIZE  256
 
-static void clock_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out, size_t outSize) {
-    if (outSize == 0) return;
+static void clock_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out, size_t outSize)
+{
+    if (outSize == 0)
+        return;
 
     TIME_ZONE_INFORMATION tzi;
     DWORD tzStatus = GetTimeZoneInformation(&tzi);
     LONG biasMinutes = tzi.Bias;
 
-    if (tzStatus == TIME_ZONE_ID_STANDARD) {
+    if (tzStatus == TIME_ZONE_ID_STANDARD)
+    {
         biasMinutes += tzi.StandardBias;
-    } else if (tzStatus == TIME_ZONE_ID_DAYLIGHT) {
+    }
+    else if (tzStatus == TIME_ZONE_ID_DAYLIGHT)
+    {
         biasMinutes += tzi.DaylightBias;
     }
 
     LONG offsetMinutes = -biasMinutes;
     char sign = '+';
-    if (offsetMinutes < 0) {
+    if (offsetMinutes < 0)
+    {
         sign = '-';
         offsetMinutes = -offsetMinutes;
     }
@@ -39,7 +45,8 @@ static void clock_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out, size_t 
              offsetMinutes % 60);
 }
 
-void clog_clock(clog_Arena scratch) {
+void clog_clock(clog_Arena scratch)
+{
     time_t unixtime = time(NULL);
     struct tm *tm_time; // careful, pointers returned by localtime and gmtime point to the same memory
 
@@ -60,14 +67,15 @@ void clog_clock(clog_Arena scratch) {
     strftime(utcBuf, TIME_BUF_SIZE, "%Y-%m-%d %H:%M:%S", tm_time);
 
     /* Read NTP type and server from the W32Time registry key */
-    CHAR ntpType[REG_VAL_SIZE]   = "-";
+    CHAR ntpType[REG_VAL_SIZE] = "-";
     CHAR ntpServer[REG_VAL_SIZE] = "-";
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
                       "SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters",
-                      0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+                      0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    {
         DWORD cbData = REG_VAL_SIZE;
-        RegQueryValueExA(hKey, "Type",      NULL, NULL, (LPBYTE)ntpType,   &cbData);
+        RegQueryValueExA(hKey, "Type", NULL, NULL, (LPBYTE)ntpType, &cbData);
         cbData = REG_VAL_SIZE;
         RegQueryValueExA(hKey, "NtpServer", NULL, NULL, (LPBYTE)ntpServer, &cbData);
         RegCloseKey(hKey);
@@ -86,9 +94,11 @@ void clog_clock(clog_Arena scratch) {
        which causes w32tm to print an unhelpful COM error. */
     BOOL w32timeRunning = FALSE;
     SC_HANDLE hSCM = OpenSCManagerA(NULL, NULL, SC_MANAGER_CONNECT);
-    if (hSCM) {
+    if (hSCM)
+    {
         SC_HANDLE hSvc = OpenServiceA(hSCM, "W32Time", SERVICE_QUERY_STATUS);
-        if (hSvc) {
+        if (hSvc)
+        {
             SERVICE_STATUS ss;
             if (QueryServiceStatus(hSvc, &ss))
                 w32timeRunning = (ss.dwCurrentState == SERVICE_RUNNING);
@@ -97,15 +107,19 @@ void clog_clock(clog_Arena scratch) {
         CloseServiceHandle(hSCM);
     }
 
-    if (w32timeRunning) {
+    if (w32timeRunning)
+    {
         clog_utils_RunCmdSynchronously("C:\\Windows\\System32\\w32tm.exe /query /status", scratch);
-    } else {
+    }
+    else
+    {
         clog_ArenaAppend(&scratch, "W32Time service is not running.\n");
     }
 }
 
 #ifdef STANDALONE
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     clog_clock(st->Memory);
     printf("%s", st->Start);

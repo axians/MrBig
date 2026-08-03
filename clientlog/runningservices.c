@@ -1,8 +1,10 @@
 #include "clientlog.h"
 #include <winsvc.h>
 
-LPTSTR runningservices_PrettyStartType(DWORD state) {
-    switch (state) {
+LPTSTR runningservices_PrettyStartType(DWORD state)
+{
+    switch (state)
+    {
     case SERVICE_AUTO_START:
         return "Auto";
     case SERVICE_BOOT_START:
@@ -18,8 +20,10 @@ LPTSTR runningservices_PrettyStartType(DWORD state) {
     }
 }
 
-LPTSTR runningservices_PrettyServiceStatus(DWORD state) {
-    switch (state) {
+LPTSTR runningservices_PrettyServiceStatus(DWORD state)
+{
+    switch (state)
+    {
     case SERVICE_CONTINUE_PENDING:
         return "Unpausing";
     case SERVICE_PAUSE_PENDING:
@@ -39,7 +43,8 @@ LPTSTR runningservices_PrettyServiceStatus(DWORD state) {
     }
 }
 
-void clog_runningservices(clog_Arena scratch) {
+void clog_runningservices(clog_Arena scratch)
+{
     SC_HANDLE hServiceManager = OpenSCManager(NULL, SERVICES_ACTIVE_DATABASE, SC_MANAGER_ENUMERATE_SERVICE);
     clog_Defer(&scratch, hServiceManager, RETURN_INT, &CloseServiceHandle);
 
@@ -56,24 +61,32 @@ void clog_runningservices(clog_Arena scratch) {
 
     clog_ArenaAppend(&scratch, "[runningservices]");
     clog_ArenaAppend(&scratch, "\n%6s \t%-23s\t%-63s\t%-7s\t%s", "PID", "SERVICE", "DISPLAY NAME", "STARTUP", "STATUS");
-    if (!servicesSuccessful) {
+    if (!servicesSuccessful)
+    {
         clog_ArenaAppend(&scratch, "(Unable to get services, error code %#010lx)", GetLastError());
-    } else {
+    }
+    else
+    {
         CHAR serviceNameBuf[24], displayNameBuf[64];
         DWORD numActive = 0, numInactive = 0;
         LPENUM_SERVICE_STATUS_PROCESS active[servicesNumReturned];
         LPENUM_SERVICE_STATUS_PROCESS inactive[servicesNumReturned];
         LPENUM_SERVICE_STATUS_PROCESS services = (LPENUM_SERVICE_STATUS_PROCESS)servicesBuffer;
-        for (DWORD i = 0; i < servicesNumReturned; i++) {
+        for (DWORD i = 0; i < servicesNumReturned; i++)
+        {
             ENUM_SERVICE_STATUS_PROCESS *service = &services[i];
-            if (service->ServiceStatusProcess.dwCurrentState != SERVICE_STOPPED) {
+            if (service->ServiceStatusProcess.dwCurrentState != SERVICE_STOPPED)
+            {
                 active[numActive++] = service;
-            } else {
+            }
+            else
+            {
                 inactive[numInactive++] = service;
             }
         }
 
-        for (DWORD i = 0; i < numActive; i++) {
+        for (DWORD i = 0; i < numActive; i++)
+        {
             ENUM_SERVICE_STATUS_PROCESS service = *active[i];
             SC_HANDLE hService = OpenService(hServiceManager, service.lpServiceName, SERVICE_QUERY_CONFIG);
             clog_Defer(&scratch, hService, RETURN_INT, CloseServiceHandle);
@@ -81,14 +94,17 @@ void clog_runningservices(clog_Arena scratch) {
             BYTE confBytes[servicesBytesNeeded];
             QUERY_SERVICE_CONFIG *conf = (QUERY_SERVICE_CONFIG *)confBytes;
             BOOL queryConfOK = QueryServiceConfig(hService, conf, servicesBytesNeeded, &servicesBytesNeeded);
-            if (!queryConfOK) {
+            if (!queryConfOK)
+            {
                 clog_ArenaAppend(&scratch, "\n%6lu \t%-23s\t%-63s\t%-7s\t%s",
                                  service.ServiceStatusProcess.dwProcessId,
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
                                  clog_utils_ClampString(service.lpDisplayName, displayNameBuf, sizeof displayNameBuf),
                                  runningservices_PrettyStartType(-1),
                                  runningservices_PrettyServiceStatus(service.ServiceStatusProcess.dwCurrentState));
-            } else {
+            }
+            else
+            {
                 clog_ArenaAppend(&scratch, "\n%6lu \t%-23s\t%-63s\t%-7s\t%s",
                                  service.ServiceStatusProcess.dwProcessId,
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
@@ -99,7 +115,8 @@ void clog_runningservices(clog_Arena scratch) {
             clog_PopDefer(&scratch);
         }
 
-        for (DWORD i = 0; i < numInactive; i++) {
+        for (DWORD i = 0; i < numInactive; i++)
+        {
             ENUM_SERVICE_STATUS_PROCESS service = *inactive[i];
             SC_HANDLE hService = OpenService(hServiceManager, service.lpServiceName, SERVICE_QUERY_CONFIG);
             clog_Defer(&scratch, hService, RETURN_INT, CloseServiceHandle);
@@ -107,14 +124,17 @@ void clog_runningservices(clog_Arena scratch) {
             BYTE confBytes[servicesBytesNeeded];
             QUERY_SERVICE_CONFIG *conf = (QUERY_SERVICE_CONFIG *)confBytes;
             BOOL queryConfOK = QueryServiceConfig(hService, conf, servicesBytesNeeded, &servicesBytesNeeded);
-            if (!queryConfOK) {
+            if (!queryConfOK)
+            {
                 clog_ArenaAppend(&scratch, "\n%6s \t%-23s\t%-63s\t%-7s\t%s",
                                  "-",
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
                                  clog_utils_ClampString(service.lpDisplayName, displayNameBuf, sizeof displayNameBuf),
                                  runningservices_PrettyStartType(-1),
                                  runningservices_PrettyServiceStatus(service.ServiceStatusProcess.dwCurrentState));
-            } else if (conf->dwStartType == SERVICE_AUTO_START) {
+            }
+            else if (conf->dwStartType == SERVICE_AUTO_START)
+            {
                 clog_ArenaAppend(&scratch, "\n%6s \t%-23s\t%-63s\t%-7s\t%s",
                                  "-",
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
@@ -128,7 +148,8 @@ void clog_runningservices(clog_Arena scratch) {
 }
 
 #ifdef STANDALONE
-int main(int argc, TCHAR *argv[]) {
+int main(int argc, TCHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     clog_runningservices(st->Memory);
     clog_PopDeferAll(&st->Memory);

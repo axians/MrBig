@@ -9,11 +9,15 @@
  * @param outSize the number of bytes that can be written to out, must be at least 2
  * @return The input parameter "out" for convenience.
  */
-LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize) {
+LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize)
+{
     int written = snprintf(out, outSize, "%s", str);
-    if (written >= outSize && outSize > 7) {
+    if (written >= outSize && outSize > 7)
+    {
         strcpy(&out[outSize - 3], "..");
-    } else if (written == 0) {
+    }
+    else if (written == 0)
+    {
         strcpy(out, "-");
     }
 
@@ -31,7 +35,8 @@ LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize) {
  * @param out output buffer to store the result.
  * @return The input parameter "out" for convenience.
  */
-LPSTR clog_utils_PrettyBytes(ULONGLONG bytes, DWORD target, LPSTR out) {
+LPSTR clog_utils_PrettyBytes(ULONGLONG bytes, DWORD target, LPSTR out)
+{
     static DOUBLE LOG1024E = 0.144269504088896340736;
     static LPCTSTR prefixes[] = {"", "K", "M", "G", "T"};
 
@@ -51,22 +56,27 @@ LPSTR clog_utils_PrettyBytes(ULONGLONG bytes, DWORD target, LPSTR out) {
  * @param outSize the number of bytes that can be written to out
  * @return The input parameter "out" for convenience.
  */
-LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t outSize) {
+LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t outSize)
+{
     DWORD written = 0;
-    if (flags & clog_utils_TIMESTAMP_DATE) written += snprintf(&out[written], outSize - written, "%u-%02u-%02u", t->wYear, t->wMonth, t->wDay);
-    if ((flags & clog_utils_TIMESTAMP_DATE) && (flags & clog_utils_TIMESTAMP_CLOCK)) written += snprintf(&out[written], outSize - written, " ");
-    if (flags & clog_utils_TIMESTAMP_CLOCK) written += snprintf(&out[written], outSize - written, "%02u:%02u:%02u", t->wHour, t->wMinute, t->wSecond);
+    if (flags & clog_utils_TIMESTAMP_DATE)
+        written += snprintf(&out[written], outSize - written, "%u-%02u-%02u", t->wYear, t->wMonth, t->wDay);
+    if ((flags & clog_utils_TIMESTAMP_DATE) && (flags & clog_utils_TIMESTAMP_CLOCK))
+        written += snprintf(&out[written], outSize - written, " ");
+    if (flags & clog_utils_TIMESTAMP_CLOCK)
+        written += snprintf(&out[written], outSize - written, "%02u:%02u:%02u", t->wHour, t->wMinute, t->wSecond);
     return out;
 }
 
 #define PROCESS_TIMOUT_LIMIT_MS 1000
-#define BUFREAD 513
+#define BUFREAD                 513
 /** Run a shell command. Callers should call clog_PopDeferAll(&scratch) after this function has been used.
  * @param cmdline the command to run, including flags
  * @param scratch a clientlog arena to which the output will be appended
  * @return If the command finished sucessfully, TRUE, otherwise FALSE. A command with an errored status code is not considered a failure.
  */
-DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
+DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch)
+{
     HANDLE hPipeOutputRead = NULL;
     HANDLE hPipeOutputWrite = NULL;
     DWORD status = 0;
@@ -78,7 +88,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     securityAttributes.lpSecurityDescriptor = NULL;
 
     // Create a pipe for the child process's STDOUT.
-    if (!CreatePipe(&hPipeOutputRead, &hPipeOutputWrite, &securityAttributes, 0)) {
+    if (!CreatePipe(&hPipeOutputRead, &hPipeOutputWrite, &securityAttributes, 0))
+    {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 1.%#010x.)", status);
         CloseHandle(hPipeOutputRead);
@@ -87,7 +98,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     }
 
     // Ensure the read handle to the pipe for STDOUT is not inherited.
-    if (!SetHandleInformation(hPipeOutputRead, HANDLE_FLAG_INHERIT, 0)) {
+    if (!SetHandleInformation(hPipeOutputRead, HANDLE_FLAG_INHERIT, 0))
+    {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 2.%#010x.)", status);
         CloseHandle(hPipeOutputRead);
@@ -116,7 +128,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
                            &procInfo);
 
     CloseHandle(hPipeOutputWrite);
-    if (!status) {
+    if (!status)
+    {
         status = GetLastError();
         clog_ArenaAppend(&scratch, "(Failed to run command, could not create process from '%s'. Error code 3.%#010x.)", cmdline, status);
         CloseHandle(hPipeOutputRead);
@@ -126,13 +139,19 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     }
 
     status = WaitForSingleObject(procInfo.hProcess, PROCESS_TIMOUT_LIMIT_MS);
-    if (status != WAIT_OBJECT_0) {
-        if (status == WAIT_FAILED) {
+    if (status != WAIT_OBJECT_0)
+    {
+        if (status == WAIT_FAILED)
+        {
             status = GetLastError();
             clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 4.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status);
-        } else if (status == WAIT_TIMEOUT) {
+        }
+        else if (status == WAIT_TIMEOUT)
+        {
             clog_ArenaAppend(&scratch, "(Failed to run command, process took more than %dms to run. Error code 5.%lu.)", PROCESS_TIMOUT_LIMIT_MS, status);
-        } else {
+        }
+        else
+        {
             DWORD lastError = GetLastError();
             clog_ArenaAppend(&scratch, "(Failed to run command, unknown error. Error code 6.%lu.%#010x.)", PROCESS_TIMOUT_LIMIT_MS, status, lastError);
         }
@@ -144,13 +163,17 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
 
     DWORD readBufLen = 0, written = 0;
     CHAR readBuf[BUFREAD];
-    do {
-        status = ReadFile(hPipeOutputRead, readBuf, BUFREAD-1, &readBufLen, NULL);
-        if (readBufLen > 0) {
+    do
+    {
+        status = ReadFile(hPipeOutputRead, readBuf, BUFREAD - 1, &readBufLen, NULL);
+        if (readBufLen > 0)
+        {
             readBuf[readBufLen] = '\0';
             clog_ArenaAppend(&scratch, "%s", readBuf);
             written += readBufLen;
-        } else {
+        }
+        else
+        {
             break;
         }
     } while (TRUE);
@@ -158,7 +181,8 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     CloseHandle(procInfo.hProcess);
     CloseHandle(procInfo.hThread);
     CloseHandle(hPipeOutputRead);
-    if (written <= 0) {
+    if (written <= 0)
+    {
         clog_ArenaAppend(&scratch, "(No output)");
     }
 

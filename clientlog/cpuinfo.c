@@ -10,7 +10,8 @@
 
 #endif
 
-void clog_cpuinfo(clog_Arena scratch) {
+void clog_cpuinfo(clog_Arena scratch)
+{
 
     DWORD len = 0;
     GetLogicalProcessorInformationEx(RelationProcessorCore, NULL, &len);
@@ -51,9 +52,11 @@ void clog_cpuinfo(clog_Arena scratch) {
         (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)malloc(pkgLen);
 
     int packageCount = 0;
-    if (GetLogicalProcessorInformationEx(RelationProcessorPackage, pkgBuffer, &pkgLen)) {
+    if (GetLogicalProcessorInformationEx(RelationProcessorPackage, pkgBuffer, &pkgLen))
+    {
         DWORD pkgOffset = 0;
-        while (pkgOffset < pkgLen) {
+        while (pkgOffset < pkgLen)
+        {
             PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
                 (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)((BYTE *)pkgBuffer + pkgOffset);
             packageCount++;
@@ -66,30 +69,37 @@ void clog_cpuinfo(clog_Arena scratch) {
     WORD groups = GetActiveProcessorGroupCount();
 
     DWORD total = 0;
-    for (WORD i = 0; i < groups; i++) {
+    for (WORD i = 0; i < groups; i++)
+    {
         total += GetActiveProcessorCount(i);
     }
-
 
     free(buffer);
     clog_ArenaAppend(&scratch, "[cpuinfo]\n");
     clog_ArenaAppend(&scratch, "     CPU Sockets: %d\n", packageCount);
-    if (packageCount > 0) {
+    if (packageCount > 0)
+    {
         clog_ArenaAppend(&scratch, "Cores per socket: %d\n", coreCount / packageCount);
-    } else {
+    }
+    else
+    {
         clog_ArenaAppend(&scratch, "Cores per socket: N/A\n");
     }
     clog_ArenaAppend(&scratch, "     cores total: %d\n", coreCount);
-    if (coreCount > 0) {
+    if (coreCount > 0)
+    {
         clog_ArenaAppend(&scratch, "    SMT per core: %d\n", total / coreCount);
-    } else {
+    }
+    else
+    {
         clog_ArenaAppend(&scratch, "    SMT per core: N/A\n");
     }
     clog_ArenaAppend(&scratch, "       SMT total: %d\n", total);
 }
 
 #ifdef STANDALONE
-int main(int argc, CHAR *argv[]) {
+int main(int argc, CHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(0x20000);
     clog_cpuinfo(st->Memory);
     printf("%s", st->Start);

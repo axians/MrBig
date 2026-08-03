@@ -6,34 +6,40 @@
 
 #define ARENA_MAXNUM_HANDLES 8
 
-typedef enum {
+typedef enum
+{
     RETURN_INT,
     RETURN_LONG,
     RETURN_VOID,
 } clog_CloseHandleReturnType;
 
-typedef union {
+typedef union
+{
     INT Int;
     LONG Long;
     BYTE Void;
 } clog_CloseHandleReturnValue;
 
-typedef struct {
+typedef struct
+{
     void *Handle;
     clog_CloseHandleReturnType ReturnType;
-    union {
+    union
+    {
         int (*Int)(void *);
         long (*Long)(void *);
         void (*Void)(void *);
     } CloseHandleFn;
 } clog_HandleWrapper;
 
-typedef struct clog__Arena {
+typedef struct clog__Arena
+{
     /*struct clog_ArenaState*/ void *State;
     BYTE *End;
 } clog_Arena;
 
-typedef struct {
+typedef struct
+{
     clog_HandleWrapper HandleStack[ARENA_MAXNUM_HANDLES];
     jmp_buf MemoryErrorHandler;
     clog_Arena Memory;

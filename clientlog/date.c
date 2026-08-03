@@ -2,7 +2,8 @@
 
 #define TIME_BUF_SIZE 12
 
-void clog_date(clog_Arena scratch) {
+void clog_date(clog_Arena scratch)
+{
     WCHAR w_date[TIME_BUF_SIZE];
     CHAR s_date[TIME_BUF_SIZE];
     GetDateFormatEx(L"sv-SE", DATE_SHORTDATE, NULL, NULL, w_date, TIME_BUF_SIZE, NULL);
@@ -18,7 +19,8 @@ void clog_date(clog_Arena scratch) {
 }
 
 #ifdef STANDALONE
-int main(int argc, TCHAR *argv[]) {
+int main(int argc, TCHAR *argv[])
+{
     clog_ArenaState *st = clog_ArenaMake(32);
     clog_date(st->Memory);
     printf("%s", st->Start);
