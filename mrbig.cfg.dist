@@ -35,6 +35,8 @@ display 10.0.4.5
 #cpured 90
 
 # Time offset thresholds for NTP skew check, in seconds (default: 60 yellow, 300 red)
+# NTP skew test is opt-in. Enable it with:
+#option ntp
 #ntpskewyellow 60
 #ntpskewred 300
 
