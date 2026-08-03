@@ -1,3 +1,7 @@
+2026-08-03 Compilation now sets the fileversion based on release tag
+    Sets the version based on release tag. Example: tag v0.0.1 -> MrBig 0.0.1
+    Supports pre-releases, gets -pre appended to version.
+
 2026-07-21 Realese MrBig-0.26.6
 
 2026-07-21 Update Changelog formatting to be more readable and consistent.
