@@ -5,6 +5,11 @@
     which only require PROCESS_QUERY_LIMITED_INFORMATION. This should avoid
     the false positive warning from Windows Defender.
 
+2026-07-28 Bugfix Clientlog ipconfig
+    Long ipconfig /all could take up more than 4kb of the pipe buffer.
+    Now reading the pipe while the child process is still producing output,
+    instead of waiting for the child process to finish before reading.
+
 2026-07-21 Released MrBig-0.26.6
 
 2026-07-21 Update Changelog formatting to be more readable and consistent.
