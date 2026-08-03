@@ -25,7 +25,6 @@ jobs:
       run: |
         TAG="${GITHUB_REF_NAME#v}"
         if [ "${{ github.event_name }}" = "release" ] && [ -n "$TAG" ]; then
-          [ "${{ github.event.release.prerelease }}" = "true" ] && TAG="${TAG}-pre"
           make all VERSION="$TAG"
         else
           make all
