@@ -56,9 +56,12 @@ void kbs_InsertKB(TreeSet **root, TreeSet *node) {
         *root = node;
     } else {
         TreeSet *rootNode = *root;
-        if (node->Value < rootNode->Value)
+        int cmp = strcmp(node->dateInstalled, rootNode->dateInstalled);
+        if (cmp == 0)
+            cmp = (node->Value < rootNode->Value) ? -1 : (node->Value > rootNode->Value) ? 1 : 0;
+        if (cmp < 0)
             kbs_InsertKB(&rootNode->Left, node);
-        else if (node->Value > rootNode->Value)
+        else if (cmp > 0)
             kbs_InsertKB(&rootNode->Right, node);
         else
             return;
