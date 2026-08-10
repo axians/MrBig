@@ -71,6 +71,59 @@ struct http_target {
 	unsigned long addr_s_addr;
 };
 
+static char *base64_encode(const unsigned char *src, size_t len)
+{
+	static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	char *out;
+	size_t out_len;
+	size_t i;
+	size_t j;
+
+	if (!src) return NULL;
+	out_len = ((len + 2) / 3) * 4;
+	out = big_malloc("base64_encode", out_len + 1);
+
+	i = 0;
+	j = 0;
+	while (i < len) {
+		size_t rem = len - i;
+		unsigned int octet_a = src[i++];
+		unsigned int octet_b = (rem > 1) ? src[i++] : 0;
+		unsigned int octet_c = (rem > 2) ? src[i++] : 0;
+		unsigned int triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+
+		out[j++] = b64[(triple >> 18) & 0x3F];
+		out[j++] = b64[(triple >> 12) & 0x3F];
+		out[j++] = (rem > 1) ? b64[(triple >> 6) & 0x3F] : '=';
+		out[j++] = (rem > 2) ? b64[triple & 0x3F] : '=';
+	}
+
+	out[out_len] = '\0';
+	return out;
+}
+
+static int append_auth_header(struct display *mp, char *headers, size_t headers_size)
+{
+	char auth_raw[512];
+	char *encoded;
+	int n;
+
+	if (!mp || !headers || headers_size == 0) return 0;
+	if (mp->http_username[0] == '\0') return 0;
+
+	n = snprintf(auth_raw, sizeof auth_raw, "%s:%s", mp->http_username, mp->http_password);
+	if (n < 0 || (size_t)n >= sizeof auth_raw) {
+		mrlog("append_auth_header: credentials too long for target %s", mp->host);
+		return 0;
+	}
+
+	encoded = base64_encode((const unsigned char *)auth_raw, (size_t)n);
+	if (!encoded) return 0;
+	snprcat(headers, headers_size, "Authorization: Basic %s\r\n", encoded);
+	big_free("append_auth_header", encoded);
+	return 1;
+}
+
 static int fill_http_target(struct display *mp, int default_port,
 	struct http_target *target)
 {
@@ -87,11 +140,13 @@ static int fill_http_target(struct display *mp, int default_port,
 	return 1;
 }
 
-static int send_https_target(const struct http_target *target, const char *payload,
-	int payload_len)
+static int send_https_target(struct display *mp, const struct http_target *target,
+	const char *payload, int payload_len)
 {
 	wchar_t whost[256];
 	wchar_t wpath[256];
+	wchar_t wheaders[1024];
+	char headers[1024];
 	HINTERNET hSession;
 	int timeout = http_timeout_ms;
 	int attempt;
@@ -99,6 +154,14 @@ static int send_https_target(const struct http_target *target, const char *paylo
 	if (!to_wstr(target->host, whost, sizeof whost / sizeof whost[0])
 		|| !to_wstr(http_path, wpath, sizeof wpath / sizeof wpath[0])) {
 		mrlog("send_update_http: failed string conversion for HTTPS target");
+		return 0;
+	}
+
+	headers[0] = '\0';
+	snprcat(headers, sizeof headers, "Content-Type: text/plain\r\n");
+	append_auth_header(mp, headers, sizeof headers);
+	if (!to_wstr(headers, wheaders, sizeof wheaders / sizeof wheaders[0])) {
+		mrlog("send_update_http: failed header conversion for HTTPS target");
 		return 0;
 	}
 
@@ -151,7 +214,7 @@ static int send_https_target(const struct http_target *target, const char *paylo
 		}
 
 		if (!WinHttpSendRequest(hRequest,
-			L"Content-Type: text/plain\r\n",
+			wheaders,
 			-1,
 			(LPVOID)payload,
 			(DWORD)payload_len,
@@ -209,8 +272,8 @@ static int send_https_target(const struct http_target *target, const char *paylo
 	return 0;
 }
 
-static int send_http_target(const struct http_target *target, const char *payload,
-	int payload_len, char *request, int request_size)
+static int send_http_target(struct display *mp, const struct http_target *target,
+	const char *payload, int payload_len, char *request, int request_size)
 {
 	SOCKET s;
 	struct sockaddr_in addr;
@@ -234,6 +297,7 @@ static int send_http_target(const struct http_target *target, const char *payloa
 		snprcat(request, request_size, "POST %s HTTP/1.1\r\n", http_path);
 		snprcat(request, request_size, "Host: %s:%d\r\n", target->host, target->port);
 		snprcat(request, request_size, "Content-Type: text/plain\r\n");
+		append_auth_header(mp, request, request_size);
 		snprcat(request, request_size, "Connection: close\r\n");
 		snprcat(request, request_size, "Content-Length: %d\r\n\r\n", payload_len);
 		snprcat(request, request_size, "%s", payload);
@@ -300,71 +364,79 @@ static int send_http_target(const struct http_target *target, const char *payloa
 	return 0;
 }
 
-static int send_update_http_route(char *p, int use_https)
+static int send_update_http_target(struct display *mp, char *p, int use_https)
 {
-	struct display *mp;
 	int payload_len;
 	int request_size;
 	char *request;
 	int default_port;
-	int all_ok = 1;
-	int have_target = 0;
+	int ok;
+	struct http_target target;
 
 	if (!start_winsock()) return 0;
 
 	payload_len = (int)strlen(p);
-	request_size = payload_len + 1024;
-	request = big_malloc("send_update_http_route", request_size);
 	default_port = use_https ? MRBIG_HTTPS_DEFAULT_PORT : MRBIG_HTTP_DEFAULT_PORT;
+	if (!fill_http_target(mp, default_port, &target)) return 0;
 
-	for (mp = mrdisplay; mp; mp = mp->next) {
-		struct http_target target;
-		int ok;
-
-		have_target = 1;
-		if (!fill_http_target(mp, default_port, &target)) {
-			all_ok = 0;
-			continue;
-		}
-		ok = use_https
-			? send_https_target(&target, p, payload_len)
-			: send_http_target(&target, p, payload_len, request, request_size);
-		if (!ok) {
-			all_ok = 0;
-			mrlog("send_update_http_route: failed for %s:%d after %d attempts",
-				target.host, target.port, http_retries);
-		}
+	if (use_https) {
+		ok = send_https_target(mp, &target, p, payload_len);
+	} else {
+		request_size = payload_len + 1024;
+		request = big_malloc("send_update_http_target", request_size);
+		ok = send_http_target(mp, &target, p, payload_len, request, request_size);
+		big_free("send_update_http_target", request);
 	}
 
-	if (!have_target) {
-		mrlog("send_update_http_route: no HTTP(S) target configured");
-		all_ok = 0;
-	}
+	if (!ok) mrlog("send_update_http_target: failed for %s:%d after %d attempts",
+		target.host, target.port, http_retries);
+	return ok;
+}
 
-	if (all_ok) mrlog("send_update_http_route: sent update to all displays");
-	else mrlog("send_update_http_route: failed to send update to one or more displays");
-	big_free("send_update_http_route", request);
-	return all_ok;
+static int send_update_tcp_target(struct display *target, char *p)
+{
+	struct display *saved_head;
+	struct display *saved_next;
+
+	if (!target) return 0;
+	saved_head = mrdisplay;
+	saved_next = target->next;
+	target->next = NULL;
+	mrdisplay = target;
+	send_update_tcp(p);
+	mrdisplay = saved_head;
+	target->next = saved_next;
+	return 1;
 }
 
 void send_update_http(char *p)
 {
-	if (display_scheme == DISPLAY_SCHEME_HTTPS) {
-		if (!send_update_http_route(p, 1)) {
-			mrlog("send_update_http: HTTPS route failed");
+	struct display *mp;
+	int all_ok = 1;
+	int have_target = 0;
+
+	for (mp = mrdisplay; mp; mp = mp->next) {
+		int ok = 0;
+
+		have_target = 1;
+		if (mp->scheme == DISPLAY_SCHEME_HTTP) {
+			ok = send_update_http_target(mp, p, 0);
+		} else if (mp->scheme == DISPLAY_SCHEME_HTTPS) {
+			ok = send_update_http_target(mp, p, 1);
+		} else {
+			ok = send_update_tcp_target(mp, p);
 		}
+
+		if (!ok) all_ok = 0;
+	}
+
+	if (!have_target) {
+		mrlog("send_update_http: no display target configured");
 		return;
 	}
 
-	if (display_scheme == DISPLAY_SCHEME_HTTP) {
-		if (!send_update_http_route(p, 0)) {
-			mrlog("send_update_http: HTTP route failed");
-		}
-		return;
-	}
-
-	mrlog("send_update_http: display_scheme=tcp, using TCP route");
-	send_update_tcp(p);
+	if (all_ok) mrlog("send_update_http: sent update to all displays");
+	else mrlog("send_update_http: failed to send update to one or more displays");
 }
 
 void send_update_tcp(char *p)

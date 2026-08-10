@@ -30,7 +30,6 @@ int report_size = 16384;
 int http_timeout_ms = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
 int http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
 char http_path[256] = MRBIG_HTTP_DEFAULT_PATH;
-int display_scheme = DISPLAY_SCHEME_TCP;
 
 /* nosy memory management */
 static int debug_memory = 0;
@@ -461,9 +460,81 @@ static time_t lookup_grace(char *test)
         return 0;
 }
 
+static int parse_scheme(char *value)
+{
+	if (!strcmp(value, "https")) return DISPLAY_SCHEME_HTTPS;
+	if (!strcmp(value, "http")) return DISPLAY_SCHEME_HTTP;
+	return DISPLAY_SCHEME_TCP;
+}
+
+static int parse_target(char *target, char *host, size_t host_size,
+	int *has_port, int *port)
+{
+	char *p;
+
+	if (!target || !host || host_size == 0 || !has_port || !port) return 0;
+	strlcpy(host, target, host_size);
+	p = strchr(host, ':');
+	if (!p) {
+		*has_port = 0;
+		*port = 0;
+		return 1;
+	}
+
+	*p++ = '\0';
+	if (*p == '\0') return 0;
+	*port = atoi(p);
+	if (*port < 1 || *port > 65535) return 0;
+	*has_port = 1;
+	return 1;
+}
+
+static int display_matches_target(struct display *mp, char *host,
+	int has_port, int port)
+{
+	int mp_port;
+
+	if (strcmp(mp->host, host)) return 0;
+	if (!has_port) return 1;
+	mp_port = mp->has_port ? ntohs(mp->in_addr.sin_port) : mrport;
+	return mp_port == port;
+}
+
+static int set_display_http_value_for_target(char *target, char *value,
+	int is_username)
+{
+	char host[256];
+	int has_port;
+	int port;
+	int nmatched = 0;
+	struct display *mp;
+
+	if (!parse_target(target, host, sizeof host, &has_port, &port)) {
+		mrlog("readcfg: invalid display target for http auth: %s", target);
+		return 0;
+	}
+
+	for (mp = mrdisplay; mp; mp = mp->next) {
+		if (display_matches_target(mp, host, has_port, port)) {
+			if (is_username) strlcpy(mp->http_username, value, sizeof mp->http_username);
+			else strlcpy(mp->http_password, value, sizeof mp->http_password);
+			nmatched++;
+		}
+	}
+
+	if (nmatched == 0) {
+		mrlog("readcfg: http auth target not found: %s", target);
+	}
+
+	return nmatched;
+}
+
 static void readcfg(void)
 {
 	char b[256], key[256], value[256], *p;
+	char display_target[256];
+	char display_mode[32];
+	char target[256], value2[256];
 	struct display *mp;
 	int i;
 
@@ -498,22 +569,41 @@ static void readcfg(void)
 	http_timeout_ms = MRBIG_HTTP_DEFAULT_TIMEOUT_MS;
 	http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
 	strlcpy(http_path, MRBIG_HTTP_DEFAULT_PATH, sizeof http_path);
-	display_scheme = DISPLAY_SCHEME_TCP;
 	if (logfp) big_fclose("readcfg:logfile", logfp);
 	logfp = NULL;
 
 	for (i = 0; get_cfg("mrbig", b, sizeof b, i); i++) {
 		if (b[0] == '#') continue;
+
+		if (sscanf(b, "display_http_username %255s %255[^\n]", target, value2) == 2) {
+			set_display_http_value_for_target(target, value2, 1);
+			continue;
+		}
+		if (sscanf(b, "display_http_password %255s %255[^\n]", target, value2) == 2) {
+			set_display_http_value_for_target(target, value2, 0);
+			continue;
+		}
+
 		if (sscanf(b, "%s %[^\n]", key, value) == 2) {
 			if (!strcmp(key, "machine")) {
 				strlcpy(mrmachine, value, sizeof mrmachine);
 			} else if (!strcmp(key, "port")) {
 				mrport = atoi(value);
 			} else if (!strcmp(key, "display")) {
+				int ndisplay;
+
+				display_target[0] = '\0';
+				display_mode[0] = '\0';
+				ndisplay = sscanf(value, "%255s %31s", display_target, display_mode);
+				if (ndisplay < 1) {
+					mrlog("readcfg: invalid display line: %s", b);
+					continue;
+				}
+
 				mp = big_malloc("readcfg: display", sizeof *mp);
 				memset(&mp->in_addr, 0, sizeof mp->in_addr);
 				mp->in_addr.sin_family = AF_INET;
-				strlcpy(mp->host, value, sizeof mp->host);
+				strlcpy(mp->host, display_target, sizeof mp->host);
 				p = strchr(mp->host, ':');
 				if (p) {
 					mp->has_port = 1;
@@ -524,6 +614,13 @@ static void readcfg(void)
 					mp->in_addr.sin_port = htons(mrport);
 				}
 				mp->in_addr.sin_addr.s_addr = inet_addr(mp->host);
+				if (ndisplay >= 2) {
+					mp->scheme = parse_scheme(display_mode);
+				} else {
+					mp->scheme = DISPLAY_SCHEME_TCP;
+				}
+				mp->http_username[0] = '\0';
+				mp->http_password[0] = '\0';
 				mp->next = mrdisplay;
 				mrdisplay = mp;
 			} else if (!strcmp(key, "sleep")) {
@@ -582,10 +679,6 @@ static void readcfg(void)
 				if (http_retries < 1) {
 					http_retries = MRBIG_HTTP_DEFAULT_RETRIES;
 				}
-			} else if (!strcmp(key, "display_scheme")) {
-				if (!strcmp(value, "https")) display_scheme = DISPLAY_SCHEME_HTTPS;
-				else if (!strcmp(value, "http")) display_scheme = DISPLAY_SCHEME_HTTP;
-				else display_scheme = DISPLAY_SCHEME_TCP;
 			} else if (!strcmp(key, "option")) {
 				insert_option(value);
 			} else if (!strcmp(key, "memsize")) {
@@ -828,7 +921,7 @@ void mrsend(char *machine, char *test, char *color, char *message)
 	big_free("mrsend()", p);
 }
 
-/*	Send an update for clientlog style messages, which have logic configured serverside. 
+/*	Send an update for clientlog style messages, which have logic configured serverside.
 	The format is:
 		client [machine],[domain],[tld].[os] [os] [message] */
 void mrsend_clientlog(char *machine, char *message) {

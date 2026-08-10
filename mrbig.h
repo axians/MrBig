@@ -37,6 +37,9 @@ struct display {
 	int remaining;
 	int has_port;
 	char host[256];
+	int scheme;
+	char http_username[128];
+	char http_password[256];
 	struct display *next;
 };
 
@@ -84,7 +87,6 @@ extern struct display *mrdisplay;
 extern int http_timeout_ms;
 extern int http_retries;
 extern char http_path[256];
-extern int display_scheme;
 extern int start_winsock(void);
 extern void stop_winsock(void);
 
