@@ -143,6 +143,7 @@ static int fill_http_target(struct display *mp, int default_port,
 static int send_https_target(struct display *mp, const struct http_target *target,
 	const char *payload, int payload_len)
 {
+	const char *path;
 	wchar_t whost[256];
 	wchar_t wpath[256];
 	wchar_t wheaders[1024];
@@ -151,8 +152,10 @@ static int send_https_target(struct display *mp, const struct http_target *targe
 	int timeout = http_timeout_ms;
 	int attempt;
 
+	path = http_path[0] ? http_path : MRBIG_HTTP_DEFAULT_PATH;
+
 	if (!to_wstr(target->host, whost, sizeof whost / sizeof whost[0])
-		|| !to_wstr(http_path, wpath, sizeof wpath / sizeof wpath[0])) {
+		|| !to_wstr(path, wpath, sizeof wpath / sizeof wpath[0])) {
 		mrlog("send_update_http: failed string conversion for HTTPS target");
 		return 0;
 	}
@@ -275,10 +278,13 @@ static int send_https_target(struct display *mp, const struct http_target *targe
 static int send_http_target(struct display *mp, const struct http_target *target,
 	const char *payload, int payload_len, char *request, int request_size)
 {
+	const char *path;
 	SOCKET s;
 	struct sockaddr_in addr;
 	struct hostent *he;
 	int attempt;
+
+	path = http_path[0] ? http_path : MRBIG_HTTP_DEFAULT_PATH;
 
 	for (attempt = 1; attempt <= http_retries; attempt++) {
 		int sent = 0;
@@ -294,7 +300,7 @@ static int send_http_target(struct display *mp, const struct http_target *target
 			attempt, http_retries, payload_len, target->host, target->port);
 
 		request[0] = '\0';
-		snprcat(request, request_size, "POST %s HTTP/1.1\r\n", http_path);
+		snprcat(request, request_size, "POST %s HTTP/1.1\r\n", path);
 		snprcat(request, request_size, "Host: %s:%d\r\n", target->host, target->port);
 		snprcat(request, request_size, "Content-Type: text/plain\r\n");
 		append_auth_header(mp, request, request_size);

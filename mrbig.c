@@ -601,7 +601,7 @@ static void readcfg(void)
 				}
 
 				mp = big_malloc("readcfg: display", sizeof *mp);
-				memset(&mp->in_addr, 0, sizeof mp->in_addr);
+				memset(mp, 0, sizeof *mp);
 				mp->in_addr.sin_family = AF_INET;
 				strlcpy(mp->host, display_target, sizeof mp->host);
 				p = strchr(mp->host, ':');
