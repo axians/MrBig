@@ -24,6 +24,7 @@ enum clog_utils_PrettyTimestampFlags {
 };
 LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t outSize);
 DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch);
+void clog_utils_TrimTrailingNewlines(clog_Arena *scratch, BYTE *from);
 
 /* applications */
 void clog_applications(clog_Arena scratch);

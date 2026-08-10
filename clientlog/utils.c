@@ -61,6 +61,29 @@ LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t 
 
 #define PROCESS_TIMOUT_LIMIT_MS 1000
 #define BUFREAD 513
+void clog_utils_TrimTrailingNewlines(clog_Arena *scratch, BYTE *from) {
+    clog_ArenaState *state = (clog_ArenaState *)scratch->State;
+    if (!state || !state->Start || !state->End || !state->CurrentStart) {
+        return;
+    }
+
+    if (!from || from < state->Start) {
+        from = state->Start;
+    }
+    if (from > state->CurrentStart) {
+        from = state->CurrentStart;
+    }
+
+    while (state->CurrentStart > from &&
+           (state->CurrentStart[-1] == '\n' || state->CurrentStart[-1] == '\r')) {
+        state->CurrentStart--;
+    }
+
+    if (state->CurrentStart < state->End) {
+        *state->CurrentStart = '\0';
+    }
+}
+
 /** Run a shell command. Callers should call clog_PopDeferAll(&scratch) after this function has been used.
  * @param cmdline the command to run, including flags
  * @param scratch a clientlog arena to which the output will be appended
@@ -70,6 +93,11 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     HANDLE hPipeOutputRead = NULL;
     HANDLE hPipeOutputWrite = NULL;
     DWORD status = 0;
+    clog_ArenaState *scratchState = (clog_ArenaState *)scratch.State;
+    if (!scratchState || !scratchState->Start || !scratchState->End || !scratchState->CurrentStart) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    BYTE *outputStart = scratchState->CurrentStart;
 
     SECURITY_ATTRIBUTES securityAttributes;
     // Set the bInheritHandle flag so pipe handles are inherited.
@@ -129,7 +157,7 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
     // Poll: drain the pipe continuously while waiting for the process to exit.
     // A blocking WaitForSingleObject before ReadFile deadlocks when the child's
     // output fills the pipe buffer (child blocks on WriteFile, parent blocks on Wait).
-    DWORD readBufLen = 0, written = 0;
+    DWORD readBufLen = 0;
     CHAR readBuf[BUFREAD];
     DWORD startTick = GetTickCount();
     BOOL processExited = FALSE;
@@ -142,7 +170,6 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
             if (!ReadFile(hPipeOutputRead, readBuf, toRead, &readBufLen, NULL) || readBufLen == 0) break;
             readBuf[readBufLen] = '\0';
             clog_ArenaAppend(&scratch, "%s", readBuf);
-            written += readBufLen;
         }
 
         status = WaitForSingleObject(procInfo.hProcess, 0);
@@ -176,13 +203,16 @@ DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch) {
         if (!ReadFile(hPipeOutputRead, readBuf, toRead, &readBufLen, NULL) || readBufLen == 0) break;
         readBuf[readBufLen] = '\0';
         clog_ArenaAppend(&scratch, "%s", readBuf);
-        written += readBufLen;
     }
 
     CloseHandle(procInfo.hProcess);
     CloseHandle(procInfo.hThread);
     CloseHandle(hPipeOutputRead);
-    if (written <= 0) {
+
+    // Most commands print one trailing CRLF; trim it to avoid blank lines in reports.
+    clog_utils_TrimTrailingNewlines(&scratch, outputStart);
+
+    if (scratchState->CurrentStart <= outputStart) {
         clog_ArenaAppend(&scratch, "(No output)");
     }
 
