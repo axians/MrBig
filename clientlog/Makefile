@@ -15,7 +15,7 @@ else
 endif
 
 ODIR = .
-_OBJ = applications.o bios.o certificates.o clientversion.o clock.o cpuinfo.o date.o domain.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o registry.o runningservices.o tcpconnections.o who.o winmemory.o winports.o winroute.o winuptime.o
+_OBJ = applications.o bios.o certificates.o clientversion.o clock.o cpuinfo.o date.o domain.o diskinfo.o eventlog.o ipconfig.o kbs.o osversion.o processes.o reboots.o registry.o runningservices.o startargs.o tcpconnections.o who.o winmemory.o winports.o winroute.o winuptime.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 exe: x86.exe x64.exe
@@ -35,10 +35,10 @@ $(ODIR)/%.o: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 clientlog.o: clientlog.c clientlog.h $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $< 
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 
 clientlog.exe: EXTRA_CFLAGS = -DCLIENTLOGEXE
-clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o 
+clientlog.exe: clientlog.o $(OBJ) $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) -o $@ $^  -lcrypt32 -lwevtapi -lpdh -lwtsapi32 -lws2_32 -liphlpapi -lole32 -lnetapi32 -lsecur32 -loleaut32
 
 standalone:
@@ -95,7 +95,10 @@ registry: $(ODIR)/registry.o $(ODIR)/utils.o $(ODIR)/arena.o
 
 runningservices: $(ODIR)/runningservices.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
- 
+
+startargs: $(ODIR)/startargs.o $(ODIR)/arena.o
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
+
 tcpconnections: $(ODIR)/tcpconnections.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^ -lws2_32 -liphlpapi
 
@@ -107,14 +110,14 @@ winmemory: $(ODIR)/winmemory.o $(ODIR)/utils.o $(ODIR)/arena.o
 
 winports: $(ODIR)/winports.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^  -lws2_32  -liphlpapi
-	
+
 winroute: $(ODIR)/winroute.o $(ODIR)/utils.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 winuptime: $(ODIR)/winuptime.o $(ODIR)/arena.o
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^  -lpdh
 
-dev: 
+dev:
 	$(MAKE) DEV=1 exe
 
 

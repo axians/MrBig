@@ -12,6 +12,11 @@
     if (clog_mrlog) clog_mrlog("\n" __VA_ARGS__);
 extern void (*clog_mrlog)(char *fmt, ...);
 
+/* startup args context */
+void clog_set_start_args(int argc, char **argv);
+int clog_get_start_argc(void);
+char **clog_get_start_argv(void);
+
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...));
 
 /* utils */
@@ -48,6 +53,9 @@ void clog_cpuinfo(clog_Arena scratch);
 
 /* date */
 void clog_date(clog_Arena scratch);
+
+/* startargs */
+void clog_startargs(clog_Arena scratch);
 
 /* diskinfo */
 void clog_diskinfo(clog_Arena scratch);

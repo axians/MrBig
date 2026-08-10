@@ -1,5 +1,8 @@
 #include "clientlog.h"
 
+static int clog_start_argc = 0;
+static char **clog_start_argv = NULL;
+
 #define RUN(f, args...)                                            \
     do {                                                           \
         if (clog_mrlog) clog_mrlog("\nClientlog running " #f "(" #args ")"); \
@@ -7,6 +10,20 @@
     } while (0)
 
 void (*clog_mrlog)(char *fmt, ...) = NULL;
+
+void clog_set_start_args(int argc, char **argv) {
+    clog_start_argc = argc;
+    clog_start_argv = argv;
+}
+
+int clog_get_start_argc(void) {
+    return clog_start_argc;
+}
+
+char **clog_get_start_argv(void) {
+    return clog_start_argv;
+}
+
 void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...)) {
     clog_mrlog = mrlog;
     LOG_DEBUG("Clientlog start");
@@ -44,6 +61,10 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     RUN(clog_date, arena);
     clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n"); // one line space between sections
+
+    RUN(clog_startargs, arena);
+    clog_ArenaAppend(&arena, "\n");
+    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_osversion, arena);
     clog_ArenaAppend(&arena, "\n");

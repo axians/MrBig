@@ -1115,6 +1115,7 @@ int main(int argc, char **argv)
 	char *p;
 
 	startup_log("main()");
+	clog_set_start_args(argc, argv);
 	dirsep = '\\';
 	GetModuleFileName(NULL, cfgdir, sizeof cfgdir);
 	startup_log("cfgdir = '%s'", cfgdir);
