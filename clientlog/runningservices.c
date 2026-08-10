@@ -1,7 +1,8 @@
 #include "clientlog.h"
 #include <winsvc.h>
 
-LPTSTR runningservices_PrettyStartType(DWORD state) {
+LPTSTR runningservices_PrettyStartType(DWORD state, BOOL fDelayed) {
+    if (fDelayed && state == SERVICE_AUTO_START) return "AutoDelayed";
     switch (state) {
     case SERVICE_AUTO_START:
         return "Auto";
@@ -39,6 +40,10 @@ LPTSTR runningservices_PrettyServiceStatus(DWORD state) {
     }
 }
 
+#define RUNNING_SERVICES_TABLE_HEADER "\n%6s\t%-23s\t%-63s\t%-12s\t%-8s"
+#define RUNNING_SERVICES_TABLE_ROW_PID "\n%6lu\t%-23s\t%-63s\t%-12s\t%-8s"
+#define RUNNING_SERVICES_TABLE_ROW_NO_PID "\n%6s\t%-23s\t%-63s\t%-12s\t%-8s"
+
 void clog_runningservices(clog_Arena scratch) {
     SC_HANDLE hServiceManager = OpenSCManager(NULL, SERVICES_ACTIVE_DATABASE, SC_MANAGER_ENUMERATE_SERVICE);
     clog_Defer(&scratch, hServiceManager, RETURN_INT, &CloseServiceHandle);
@@ -55,7 +60,7 @@ void clog_runningservices(clog_Arena scratch) {
     BOOL servicesSuccessful = EnumServicesStatusEx(hServiceManager, SC_ENUM_PROCESS_INFO, /*SERVICE_DRIVER |*/ SERVICE_WIN32, SERVICE_STATE_ALL, servicesBuffer, servicesBufferSize, &servicesBytesNeeded, &servicesNumReturned, &servicesResumeHandle, NULL);
 
     clog_ArenaAppend(&scratch, "[runningservices]");
-    clog_ArenaAppend(&scratch, "\n%6s \t%-23s\t%-63s\t%-7s\t%s", "PID", "SERVICE", "DISPLAY NAME", "STARTUP", "STATUS");
+    clog_ArenaAppend(&scratch, RUNNING_SERVICES_TABLE_HEADER, "PID", "SERVICE", "DISPLAY NAME", "STARTUP", "STATUS");
     if (!servicesSuccessful) {
         clog_ArenaAppend(&scratch, "(Unable to get services, error code %#010lx)", GetLastError());
     } else {
@@ -81,19 +86,22 @@ void clog_runningservices(clog_Arena scratch) {
             BYTE confBytes[servicesBytesNeeded];
             QUERY_SERVICE_CONFIG *conf = (QUERY_SERVICE_CONFIG *)confBytes;
             BOOL queryConfOK = QueryServiceConfig(hService, conf, servicesBytesNeeded, &servicesBytesNeeded);
+            SERVICE_DELAYED_AUTO_START_INFO delayedInfo = {0};
+            DWORD delayedBytesNeeded = 0;
+            if (queryConfOK) QueryServiceConfig2(hService, SERVICE_CONFIG_DELAYED_AUTO_START_INFO, (LPBYTE)&delayedInfo, sizeof(delayedInfo), &delayedBytesNeeded);
             if (!queryConfOK) {
-                clog_ArenaAppend(&scratch, "\n%6lu \t%-23s\t%-63s\t%-7s\t%s",
+                clog_ArenaAppend(&scratch, RUNNING_SERVICES_TABLE_ROW_PID,
                                  service.ServiceStatusProcess.dwProcessId,
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
                                  clog_utils_ClampString(service.lpDisplayName, displayNameBuf, sizeof displayNameBuf),
-                                 runningservices_PrettyStartType(-1),
+                                 runningservices_PrettyStartType(-1, FALSE),
                                  runningservices_PrettyServiceStatus(service.ServiceStatusProcess.dwCurrentState));
             } else {
-                clog_ArenaAppend(&scratch, "\n%6lu \t%-23s\t%-63s\t%-7s\t%s",
+                clog_ArenaAppend(&scratch, RUNNING_SERVICES_TABLE_ROW_PID,
                                  service.ServiceStatusProcess.dwProcessId,
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
                                  clog_utils_ClampString(service.lpDisplayName, displayNameBuf, sizeof displayNameBuf),
-                                 runningservices_PrettyStartType(conf->dwStartType),
+                                 runningservices_PrettyStartType(conf->dwStartType, delayedInfo.fDelayedAutostart),
                                  runningservices_PrettyServiceStatus(service.ServiceStatusProcess.dwCurrentState));
             }
             clog_PopDefer(&scratch);
@@ -107,19 +115,22 @@ void clog_runningservices(clog_Arena scratch) {
             BYTE confBytes[servicesBytesNeeded];
             QUERY_SERVICE_CONFIG *conf = (QUERY_SERVICE_CONFIG *)confBytes;
             BOOL queryConfOK = QueryServiceConfig(hService, conf, servicesBytesNeeded, &servicesBytesNeeded);
+            SERVICE_DELAYED_AUTO_START_INFO delayedInfo = {0};
+            DWORD delayedBytesNeeded = 0;
+            if (queryConfOK) QueryServiceConfig2(hService, SERVICE_CONFIG_DELAYED_AUTO_START_INFO, (LPBYTE)&delayedInfo, sizeof(delayedInfo), &delayedBytesNeeded);
             if (!queryConfOK) {
-                clog_ArenaAppend(&scratch, "\n%6s \t%-23s\t%-63s\t%-7s\t%s",
+                clog_ArenaAppend(&scratch, RUNNING_SERVICES_TABLE_ROW_NO_PID,
                                  "-",
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
                                  clog_utils_ClampString(service.lpDisplayName, displayNameBuf, sizeof displayNameBuf),
-                                 runningservices_PrettyStartType(-1),
+                                 runningservices_PrettyStartType(-1, FALSE),
                                  runningservices_PrettyServiceStatus(service.ServiceStatusProcess.dwCurrentState));
             } else if (conf->dwStartType == SERVICE_AUTO_START) {
-                clog_ArenaAppend(&scratch, "\n%6s \t%-23s\t%-63s\t%-7s\t%s",
+                clog_ArenaAppend(&scratch, RUNNING_SERVICES_TABLE_ROW_NO_PID,
                                  "-",
                                  clog_utils_ClampString(service.lpServiceName, serviceNameBuf, sizeof serviceNameBuf),
                                  clog_utils_ClampString(service.lpDisplayName, displayNameBuf, sizeof displayNameBuf),
-                                 runningservices_PrettyStartType(conf->dwStartType),
+                                 runningservices_PrettyStartType(conf->dwStartType, delayedInfo.fDelayedAutostart),
                                  runningservices_PrettyServiceStatus(service.ServiceStatusProcess.dwCurrentState));
             }
             clog_PopDefer(&scratch);
