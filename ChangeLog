@@ -1,3 +1,10 @@
+2026-08-10 Https support
+    Support Http/https endpoints using 'display host[:port] [scheme]'
+    tcp is still default.
+    Existing configs do not need changes: 'display host' continues to use tcp with port 1984.
+    Missing display_http_* and other HTTP config lines use safe defaults.
+    For protected endpoints, use display_http_username and display_http_password.
+
 2026-08-03 Released MrBig-0.26.7-rc1
 
 2026-08-03 Change ntp-skew to opt in
