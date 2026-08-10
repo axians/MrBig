@@ -19,9 +19,34 @@ machine lifebook.qbranch.se
 
 # IP address of the display (default: 127.0.0.1)
 # There can be more than one display line
+# With HTTP transport enabled, this host (or host:port) is also used as the
+# HTTP target and Host header value.
+# Syntax: display HOST[:PORT] [tcp|http|https]
+# Default scheme: tcp
+# Default ports: tcp=1984, http=80, https=443
 display 10.0.4.5
+#display 10.0.4.5 tcp
+#display example.com:443 https
 #display 192.168.1.24
 #display 127.0.0.1
+#display example.com:443
+
+# Set scheme inline on each display line when needed (tcp/http/https).
+
+# Optional per-target HTTP Basic auth (plaintext in config).
+# Use this only if your webserver protects xymoncgimsg.cgi.
+# The target key must match the display key exactly:
+#   display example.com:443 https
+#   display_http_username example.com:443 myuser
+#   display_http_password example.com:443 mypassword
+# If display omits port, omit port here too (e.g. example.com, not example.com:443).
+#display_http_username example.com:443 myuser
+#display_http_password example.com:443 mypassword
+
+# HTTP transport settings (only used when built with MRBIG_USE_HTTP)
+#display_http_path /xymon-cgi/xymoncgimsg.cgi
+#display_http_timeout_ms 10000
+#display_http_retries 3
 
 # How often the client runs the main loop (default: 300 seconds)
 #sleep 300
