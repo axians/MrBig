@@ -1,3 +1,6 @@
+2026-08-10 Add Clientlog startargs
+    Displays what arguments mrbig was started with. Works with manuall run or by service.
+
 2026-08-03 Released MrBig-0.26.7-rc1
 
 2026-08-03 Change ntp-skew to opt in
