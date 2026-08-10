@@ -37,9 +37,9 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     clog_ArenaAppend(&arena, "client %s.windows windows\n", mrmachine);
     clog_ArenaAppend(&arena, "\n");
 
-    // decided to add a new line between each section for better readability, so each section will have two newlines after it
-    // some clientlog tests already have a newline at the end of their output, so we only need to add one more newline after those sections
-    // but most don't, so we need to add two newlines after those sections
+    // Each test must run clog_utils_TrimTrailingNewlines and append a newline after,
+    // to ensure that the output is well-formed and does not have trailing newlines before the next section.
+    // We want to have a single newline between sections, and no trailing newlines at the end of the output.
 
     RUN(clog_date, arena);
     clog_ArenaAppend(&arena, "\n");
@@ -51,7 +51,7 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_bios, arena);
-    clog_ArenaAppend(&arena, "\n"); 
+    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_domain, arena);
     clog_ArenaAppend(&arena, "\n");
