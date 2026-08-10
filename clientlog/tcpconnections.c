@@ -680,6 +680,8 @@ void clog_tcp_connections(clog_Arena scratch) {
                          targetPort);
     }
 
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 
     free(established);
     free(tcp4);

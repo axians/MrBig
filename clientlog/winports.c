@@ -273,7 +273,8 @@ void clog_winports(clog_Arena scratch) {
     else if (errored > 0)
         clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
 
-    clog_ArenaAppend(&scratch, "\n\n[winports]");
+    clog_ArenaAppend(&scratch, "\n");
+    clog_ArenaAppend(&scratch, "\n[winports]");
     clog_ArenaAppend(&scratch, "\n%-7s\t%-39s\t%-39s\t%-15s\t%7s", "Proto", "Local Address", "Foreign Address", "State", "PID");
     errored = 0;
     for (int i = 0; i < lengthof(portGroups); i++) {
@@ -287,6 +288,8 @@ void clog_winports(clog_Arena scratch) {
         clog_ArenaAppend(&scratch, "\n(Unable to get networking statistics)");
     else if (errored > 0)
         clog_ArenaAppend(&scratch, "\n(Unable to get some of the networking statistics)");
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

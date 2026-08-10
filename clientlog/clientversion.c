@@ -10,10 +10,12 @@
 void clog_clientversion(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[clientversion]");
     if (PACKAGE[0] == '\0' || VERSION[0] == '\0') {
-        clog_ArenaAppend(&scratch, "\nMrBig version unknown");
+        clog_ArenaAppend(&scratch, "\nMrBig version unknown\n");
     } else {
-        clog_ArenaAppend(&scratch, "\n" PACKAGE " version " VERSION);
+        clog_ArenaAppend(&scratch, "\n" PACKAGE " version " VERSION "\n");
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

@@ -382,6 +382,8 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a)
         processes_SortBy(&endedQuery, &processes__CompareMemory, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
     }
+    clog_utils_TrimTrailingNewlines(a, NULL);
+    clog_ArenaAppend(a, "\n");
 }
 
 void _processes(clog_Arena scratch)

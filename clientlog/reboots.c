@@ -161,6 +161,8 @@ void clog_reboots(DWORD maxNumReboots, clog_Arena scratch) {
     for (DWORD i = 0; i < numRebootsFound; i++) {
         clog_ArenaAppend(&scratch, "\n%s", reboots_PrettyEvent(&rebootevents[i], rebootOutputBuffer));
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

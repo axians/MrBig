@@ -81,6 +81,8 @@ void clog_winmemory(clog_Arena scratch) {
                      clog_utils_PrettyBytes(usedVirtualBytes, 2, usedPhys),
                      clog_utils_PrettyBytes(freeVirtualBytes, 2, freePhys),
                      percentVirtualUsed);
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

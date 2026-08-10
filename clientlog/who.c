@@ -134,6 +134,8 @@ void clog_who(DWORD maxNumSessions, clog_Arena scratch) {
     if (numSessions >= maxNumSessions) {
         clog_ArenaAppend(&scratch, "\n(...with up to %lu more sessions truncated for brevity.)", numUnfilteredSessions - numSessions);
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE
