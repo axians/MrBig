@@ -43,25 +43,20 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_date, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n"); // one line space between sections
 
     RUN(clog_osversion, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_winuptime, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_bios, arena);
-    clog_ArenaAppend(&arena, "\n"); // already has a newline at the end of bios info, so only one newline here
+    clog_ArenaAppend(&arena, "\n"); 
 
     RUN(clog_domain, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_who, 10, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_cpuinfo, arena);
@@ -69,10 +64,8 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_diskinfo, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_winmemory, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_ipconfig, arena);
@@ -83,10 +76,8 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_winports, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_tcp_connections, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_processes_EndAppendQuery, hProcesses, &arena);
@@ -100,26 +91,20 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
 
     RUN(clog_applications, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_kbs, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_certificates, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_registry, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_reboots, 5, arena);
     clog_ArenaAppend(&arena, "\n");
-    clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_clientversion, arena);
-    clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
 
