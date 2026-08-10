@@ -311,7 +311,7 @@ static const char *append_time_jump_table(char *msg, int *pos, size_t msgsz,
             "<td>%llu</td>"
             "<td style=\"white-space:nowrap\"><small>%s</small></td>"
             "<td style=\"white-space:nowrap\"><small>%s</small></td>"
-            "<td style=\"white-space:nowrap\"><small>%s</small></td>"
+            "<td><small>%s</small></td>"
             "<td>%ld</td><td>%s</td></tr>\n",
             rc, (unsigned long long)recordId, evtTime, ts_old, ts_new, diff, msgtext);
 
@@ -441,7 +441,7 @@ void ntp_skew(void)
     snprintf(msg+msgpos, sizeof msg-msgpos,
              "\n<h3>Clientlog [clock]</h3>\n"
              "\n<a href=\"/xymon-cgi/svcstatus.sh?CLIENT=%s&amp;SECTION=clock\">fallback link to clientlog [clock]</a>\n"
-             "<center><pre>"
+             "<center>"
              "<iframe src=\"/xymon-cgi/svcstatus.sh?CLIENT=%s&amp;SECTION=clock\""
              " width=\"100%%\" height=\"600\" style=\"border:1px solid #ccc;\"></iframe>"
              "</pre></center>\n",
