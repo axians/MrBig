@@ -60,6 +60,8 @@ void clog_domain(clog_Arena scratch) {
 
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "UPNDomain", upnDomain);
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "FQDN", fqdn);
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

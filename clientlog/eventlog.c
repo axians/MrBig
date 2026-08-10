@@ -142,7 +142,7 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
     for (DWORD channelIx = 0; channelIx < NUM_CHANNELS; channelIx++) {
         CHAR channelName[32];
         wcstombs(channelName, CHANNELS[channelIx], 32);
-        clog_ArenaAppend(&scratch, "\n[eventlog_%s]", CharLowerA(channelName));
+        clog_ArenaAppend(&scratch, "[eventlog_%s]", CharLowerA(channelName));
 
         EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx], L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= " STR(MAX_EVENT_AGE_MS) "]]", EvtQueryChannelPath | EvtQueryReverseDirection);
         clog_Defer(&scratch, hLog, RETURN_INT, &EvtClose);
@@ -163,8 +163,11 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
             clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %lfh.)", MAX_EVENT_AGE_MS / 3600000.0);
         }
         clog_ArenaAppend(&scratch, "\n");
+        clog_ArenaAppend(&scratch, "\n");
         clog_PopDefer(&scratch);
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

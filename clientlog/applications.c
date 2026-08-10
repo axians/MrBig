@@ -147,6 +147,8 @@ void clog_applications(clog_Arena scratch) {
     } else {
         clog_ArenaAppend(&scratch, "\n(No applications found)");
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE
