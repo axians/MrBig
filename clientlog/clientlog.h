@@ -93,5 +93,8 @@ void clog_winports(clog_Arena scratch);
 /* tcpconnections */
 void clog_tcp_connections(clog_Arena scratch);
 
+/* net-connections */
+void clog_net_connections(clog_Arena scratch);
+
 /* winuptime */
 void clog_winuptime(clog_Arena scratch);

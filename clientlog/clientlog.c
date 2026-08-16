@@ -89,6 +89,10 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     clog_ArenaAppend(&arena, "\n");
     clog_ArenaAppend(&arena, "\n");
 
+    RUN(clog_net_connections, arena);
+    clog_ArenaAppend(&arena, "\n");
+    clog_ArenaAppend(&arena, "\n");
+
     RUN(clog_processes_EndAppendQuery, hProcesses, &arena);
     clog_ArenaAppend(&arena, "\n");
 
