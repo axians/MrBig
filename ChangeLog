@@ -1,3 +1,7 @@
+2026-08-10 Support Service start autodelayed in clientlog/runningservices.c
+    Add support for service startmode autodelayed which mean that the service
+    starts after all services that have start mode auto have started.
+
 2026-08-03 Released MrBig-0.26.7-rc1
 
 2026-08-03 Change ntp-skew to opt in
