@@ -25,18 +25,18 @@ void clog_startargs(clog_Arena scratch) {
     LPCSTR rawCmd = GetCommandLineA();
 
     clog_ArenaAppend(&scratch, "[startargs]");
-    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "RawCommandLine", rawCmd ? rawCmd : "(unavailable)");
-    clog_ArenaAppend(&scratch, "\n%13s:\t%d", "ParsedArgc", argc);
+    clog_ArenaAppend(&scratch, "\n%15s:\t%s", "RawCommandLine", rawCmd ? rawCmd : "(unavailable)");
+    clog_ArenaAppend(&scratch, "\n%15s:\t%d", "ParsedArgc", argc);
 
     if (argv == NULL || argc <= 0) {
-        clog_ArenaAppend(&scratch, "\n%13s:\t%s", "ParsedArgs", "(unavailable)");
+        clog_ArenaAppend(&scratch, "\n%15s:\t%s", "ParsedArgs", "(unavailable)");
         return;
     }
 
     for (i = 0; i < argc; i++) {
         char label[32];
         snprintf(label, sizeof(label), "Arg%d", i);
-        clog_ArenaAppend(&scratch, "\n%13s:\t%s", label, argv[i] ? argv[i] : "");
+        clog_ArenaAppend(&scratch, "\n%15s:\t%s", label, argv[i] ? argv[i] : "");
     }
 }
 
