@@ -38,6 +38,8 @@ void clog_startargs(clog_Arena scratch) {
         snprintf(label, sizeof(label), "Arg%d", i);
         clog_ArenaAppend(&scratch, "\n%15s:\t%s", label, argv[i] ? argv[i] : "");
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE
