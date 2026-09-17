@@ -295,6 +295,8 @@ void clog_diskinfo(clog_Arena scratch) {
         LOG_DEBUG("\tdiskinfo.c: End of physical drive '%lu'.", i);
     }
 #undef ArenaIndentAppend
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

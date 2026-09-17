@@ -51,6 +51,8 @@ void clog_winuptime(clog_Arena scratch) {
                    uptime_days, uptime_hours, uptime_minutes,
                    boottime.wYear, boottime.wMonth, boottime.wDay,
                    boottime.wHour, boottime.wMinute, boottime.wSecond);
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

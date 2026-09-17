@@ -1,3 +1,4 @@
+#include "arena.h"
 #include "clientlog.h"
 
 #define TIME_BUF_SIZE 12
@@ -15,6 +16,8 @@ void clog_date(clog_Arena scratch) {
 
     clog_ArenaAppend(&scratch, "[date]\n");
     clog_ArenaAppend(&scratch, "%s %s", s_date, s_time);
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

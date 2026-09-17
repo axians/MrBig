@@ -232,6 +232,8 @@ void clog_certificates(clog_Arena scratch) {
     if (numCertificates == 0) {
         clog_ArenaAppend(&scratch, "\n(No certificates found in store '%s')", storeLocation);
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
     LOG_DEBUG("\tcertificates.c: End.");
 }
 

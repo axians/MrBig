@@ -37,12 +37,14 @@ void clog_bios(clog_Arena scratch) {
 
     clog_PopDeferAll(&scratch);
 #undef clog_APPEND_BIOS
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE
 int main(int argc, CHAR *argv[]) {
     clog_ArenaState *st = clog_ArenaMake(0x20000);
-    clog_reboots(5, st->Memory);
+    clog_bios(5, st->Memory);
     printf("%s", st->Start);
 }
 #endif

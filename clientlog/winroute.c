@@ -3,6 +3,8 @@
 void clog_winroute(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[winroute]\n");
     clog_utils_RunCmdSynchronously("C:\\Windows\\System32\\route print", scratch);
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

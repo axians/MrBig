@@ -399,6 +399,8 @@ Cleanup:
         LOG_DEBUG("\tkbs.c: No installed KBs found.");
         clog_ArenaAppend(&scratch, "(No KBs found)");
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 
 }
 

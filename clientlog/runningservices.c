@@ -125,6 +125,8 @@ void clog_runningservices(clog_Arena scratch) {
             clog_PopDefer(&scratch);
         }
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

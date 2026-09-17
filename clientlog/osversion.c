@@ -176,6 +176,8 @@ void clog_osversion(clog_Arena scratch) {
         clog_ArenaAppend(&scratch, "\nInstalled suites:\n%s", installedSuites);
     }
     */
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE

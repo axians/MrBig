@@ -613,6 +613,8 @@ void clog_registry(clog_Arena scratch) {
             numSucceeded++;
         }
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 
     LOG_DEBUG("\tregistry.c: Completed registry read pass (attempted=%llu, "
               "succeeded=%llu, skipped=%llu).",

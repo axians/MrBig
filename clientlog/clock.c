@@ -102,6 +102,8 @@ void clog_clock(clog_Arena scratch) {
     } else {
         clog_ArenaAppend(&scratch, "W32Time service is not running.\n");
     }
+    clog_utils_TrimTrailingNewlines(&scratch, NULL);
+    clog_ArenaAppend(&scratch, "\n");
 }
 
 #ifdef STANDALONE
