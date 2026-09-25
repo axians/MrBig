@@ -1,6 +1,19 @@
 #include "clientlog.h"
 #include <winioctl.h>
 
+#ifdef STANDALONE
+// This is to be able to compile kbs.exe as a standalone exe to test
+// Otherwise, LOG_DEBUG is an alias to mrlog, which is not available in a
+// standalone exe
+#undef LOG_DEBUG
+
+#define LOG_DEBUG(fmt, ...)                                                    \
+    do {                                                                       \
+        printf(fmt "\n", ##__VA_ARGS__);                                  \
+    } while (0)
+
+#endif
+
 typedef struct _Drive {
     CHAR Root[4], VolumeName[MAX_PATH + 1], FilesystemName[MAX_PATH + 1];
     ULONGLONG TotalSize, FreeSize, BlockSize;
@@ -89,7 +102,7 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
     LOG_DEBUG("\tdiskinfo.c: Getting Logical Drives.");
     DWORD drivebits = GetLogicalDrives();
     LOG_DEBUG("\tdiskinfo.c: Logical drive bits '%lu'.", drivebits);
-    WORD curr = 1;
+    DWORD curr = 1;
     for (WORD i = 0; (i < 26) && drivebits; i++) {
         if (curr & drivebits) {
             LOG_DEBUG("\tdiskinfo.c: Start of drive '%c:\\'.", 'A' + i);
@@ -109,6 +122,10 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
 
             LOG_DEBUG("\t\tdiskinfo.c: Opening drive file descriptor.");
             HANDLE hPhys = CreateFile(driveRaw, 0, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (hPhys == INVALID_HANDLE_VALUE) {
+                LOG_DEBUG("\t\tdiskinfo.c: Unable to open drive file descriptor. Skipping.");
+                continue;
+            }
             STORAGE_DEVICE_NUMBER storageInfo;
             DWORD bytesReturned;
             LOG_DEBUG("\t\tdiskinfo.c: Reading device info from handle.");
@@ -141,6 +158,10 @@ void diskinfo_AddVolumesToDisks(diskinfo_Disk *disks, DWORD numDisks, clog_Arena
             CloseHandle(hPhys);
 
             if (deviceNumberSuccess) { // TODO handle error
+                if (storageInfo.DeviceNumber >= numDisks) {
+                    LOG_DEBUG("\t\tdiskinfo.c: Device number '%lu' is outside the disk array (count '%lu'). Skipping.", storageInfo.DeviceNumber, numDisks);
+                    continue;
+                }
                 LOG_DEBUG("\t\tdiskinfo.c: Read device info from file descriptor. Adding drive.");
                 diskinfo_Drive *drivestack = disks[storageInfo.DeviceNumber].Drives;
                 diskinfo_Drive *drivestackPrev = NULL;
@@ -188,14 +209,20 @@ void clog_diskinfo(clog_Arena scratch) {
 
     LOG_DEBUG("\tdiskinfo.c: Opening registry key HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\disk\\Enum.");
     HKEY hKey;
-    RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\disk\\Enum", 0, KEY_READ, &hKey);
-    DWORD numDisks, type, len = 64;
-    RegGetValue(hKey, NULL, "Count", RRF_RT_REG_DWORD, &type, &numDisks, &len);
-    RegCloseKey(hKey);
+    DWORD numDisks = 0, type = 0, len = sizeof(numDisks);
+    LONG registryStatus = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\disk\\Enum", 0, KEY_READ, &hKey);
+    if (registryStatus == ERROR_SUCCESS) {
+        registryStatus = RegGetValue(hKey, NULL, "Count", RRF_RT_REG_DWORD, &type, &numDisks, &len);
+        RegCloseKey(hKey);
+    }
+    if (registryStatus != ERROR_SUCCESS) {
+        LOG_DEBUG("\tdiskinfo.c: Unable to read physical disk count from registry. Skipping.");
+        clog_ArenaAppend(&scratch, "[diskinfo]\n");
+        return;
+    }
     LOG_DEBUG("\tdiskinfo.c: Registry key value: %lu.", numDisks);
 
-    diskinfo_Disk disks[numDisks];
-    ZeroMemory(disks, numDisks * sizeof(diskinfo_Disk));
+    diskinfo_Disk *disks = clog_ArenaAlloc(&scratch, diskinfo_Disk, numDisks);
     diskinfo_AddVolumesToDisks(disks, numDisks, &scratch);
 
     clog_ArenaAppend(&scratch, "[diskinfo]");
@@ -234,7 +261,13 @@ void clog_diskinfo(clog_Arena scratch) {
             ArenaIndentAppend(&scratch, 0, "%s", disk);
             LOG_DEBUG("\t\tdiskinfo.c: Found %lu partitions.", driveInfo->PartitionCount);
             ULONGLONG totalDiskLength = 0;
-            for (WORD partitionIndex = 0; partitionIndex < driveInfo->PartitionCount; partitionIndex++) {
+            DWORD partitionCount = driveInfo->PartitionCount;
+            DWORD partitionCapacity = 16;
+            if (partitionCount > partitionCapacity) {
+                LOG_DEBUG("\t\tdiskinfo.c: Partition count exceeds the layout buffer. Limiting to '%lu'.", partitionCapacity);
+                partitionCount = partitionCapacity;
+            }
+            for (DWORD partitionIndex = 0; partitionIndex < partitionCount; partitionIndex++) {
                 PARTITION_INFORMATION_EX partition = driveInfo->PartitionEntry[partitionIndex];
                 totalDiskLength += partition.PartitionLength.QuadPart;
             }
@@ -261,7 +294,7 @@ void clog_diskinfo(clog_Arena scratch) {
 
             LOG_DEBUG("\t\tdiskinfo.c: Iterating through partitions.");
             CHAR bytesTmp[16];
-            for (DWORD partitionIndex = 0; partitionIndex < driveInfo->PartitionCount; partitionIndex++) {
+            for (DWORD partitionIndex = 0; partitionIndex < partitionCount; partitionIndex++) {
                 PARTITION_INFORMATION_EX partition = driveInfo->PartitionEntry[partitionIndex];
                 LOG_DEBUG("\t\tdiskinfo.c: Partition %lu.", partitionIndex);
                 LOG_DEBUG("\t\t\tdiskinfo.c: Style %d.", partition.PartitionStyle);
