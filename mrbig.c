@@ -913,6 +913,27 @@ void mrsend(char *machine, char *test, char *color, char *message)
 	big_free("mrsend()", p);
 }
 
+
+void msg_add_clog_iframe(char *msg, size_t msgpos, size_t size, const char *clog_section, char *machine) {
+    char urlhost[256], *p;
+    strlcpy(urlhost, mrmachine, sizeof urlhost);
+    for (p = urlhost; *p; p++)
+        if (*p == ',')
+            *p = '.';
+    char iframe_url[512];
+    snprintf(iframe_url, sizeof iframe_url, "/xymon-cgi/svcstatus.sh?CLIENT=%s&amp;SECTION=%s", machine, clog_section);
+
+    size_t rem = size > msgpos ? size - msgpos : 0;
+    snprintf(msg + msgpos, rem,
+             "<a href=\"%s\">Link to [%s]</a>"
+             "<iframe src=\"%s\" width=\"100%%\" height=\"600\" "
+             "style=\"display:block;background:#fff;color:#000;color-scheme:"
+             "light;filter:invert(1);border:1px solid #ccc;\">"
+             "</iframe>"
+             ,iframe_url, clog_section, iframe_url);
+
+}
+
 /*	Send an update for clientlog style messages, which have logic configured serverside. 
 	The format is:
 		client [machine],[domain],[tld].[os] [os] [message] */
@@ -1059,7 +1080,7 @@ void mrbig(void)
 		if (get_option("ntp", 0)) {
 			ntp_skew();
 			check_chunks("after ntp_skew test");
-		} else if (debug > 1) {
+		} else if (debug > 0) {
 			mrlog("ntp_skew disabled (enable with 'option ntp')");
 		}
 
