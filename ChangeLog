@@ -1,3 +1,5 @@
+2026-09-28 Release MrBig-0.26.7-rc3
+
 2026-09-28 Add clientlog event log channel configuration
     Disable Application, Setup, or System event log monitoring with a disable
     directive under [clientlog:eventlog] or [eventlog]. Settings are read from
