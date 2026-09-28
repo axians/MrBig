@@ -1,15 +1,18 @@
+#include "arena.h"
 #include "clientlog.h"
 
+#include <minwindef.h>
 #include <windows.h>
 #include <pdh.h>
 #include <pdhmsg.h>
 #include <tlhelp32.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define PROCESSES_BENCHMARK_SECONDS (1)
-#define NUM_TOPPROCESSES (20)
+#define NUM_TOPPROCESSES            (20)
 
 typedef struct {
     PDH_HQUERY Query;
@@ -21,10 +24,12 @@ typedef struct {
 typedef struct {
     CHAR *Process;
     LONG PID;
-    DWORD PPID; /* added */
+    DWORD PPID;
     CHAR *User;
     DOUBLE CPU;
     LONGLONG Memory;
+    DWORD NumServices;
+    CHAR **Services;
 } processes_TableRow;
 
 typedef struct {
@@ -33,28 +38,83 @@ typedef struct {
     DWORD ErrorCode;
 } processes_Table;
 
-/* ------------------------- PPID support ------------------------- */
-
 typedef struct {
     DWORD PID;
     DWORD PPID;
 } processes_PidPair;
 
-static processes_PidPair *processes_BuildPidMap(DWORD *outCount, clog_Arena *a)
-{
+static void trim_in_place(char *s) {
+    char *start = s;
+    char *end;
+
+    while (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n')
+        start++;
+
+    if (*start == 0)
+        return;
+
+    end = start + strlen(start) - 1;
+    while (end > start && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n'))
+        *end-- = '\0';
+
+    if (s != start)
+        memmove(s, start, strlen(start) + 1);
+}
+
+static void strip_surrounding_quotes(char *s) {
+    size_t len = strlen(s);
+    if (len >= 2 && s[0] == '"' && s[len - 1] == '"') {
+        memmove(s, s + 1, len - 1);
+        s[len - 2] = '\0';
+    }
+}
+
+static int split_3_csv(char *line, char *out[3]) {
+    char *p = line;
+    char *start = line;
+    int in_quotes = 0;
+    int n = 0;
+
+    trim_in_place(line);
+
+    while (*p) {
+        if (*p == '"') {
+            in_quotes = !in_quotes;
+            p++;
+            continue;
+        }
+
+        if (*p == ',' && !in_quotes) {
+            *p = '\0';
+            out[n++] = start;
+            start = p + 1;
+        }
+
+        p++;
+    }
+
+    out[n++] = start;
+
+    for (int i = 0; i < n; i++) {
+        strip_surrounding_quotes(out[i]);
+        trim_in_place(out[i]);
+    }
+
+    return n;
+}
+
+static processes_PidPair *processes_BuildPidMap(DWORD *outCount, clog_Arena *a) {
     *outCount = 0;
 
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snap == INVALID_HANDLE_VALUE) {
+    if (snap == INVALID_HANDLE_VALUE)
         return NULL;
-    }
     clog_Defer(a, snap, RETURN_INT, &CloseHandle);
 
     PROCESSENTRY32 pe;
     ZeroMemory(&pe, sizeof(pe));
     pe.dwSize = sizeof(pe);
 
-    /* First pass: count */
     DWORD count = 0;
     if (Process32First(snap, &pe)) {
         do {
@@ -62,20 +122,19 @@ static processes_PidPair *processes_BuildPidMap(DWORD *outCount, clog_Arena *a)
         } while (Process32Next(snap, &pe));
     }
 
-    if (count == 0) {
+    if (count == 0)
         return NULL;
-    }
 
     processes_PidPair *pairs = clog_ArenaAlloc(a, processes_PidPair, count);
 
-    /* Second pass: fill */
     ZeroMemory(&pe, sizeof(pe));
     pe.dwSize = sizeof(pe);
 
     DWORD i = 0;
     if (Process32First(snap, &pe)) {
         do {
-            if (i >= count) break;
+            if (i >= count)
+                break;
             pairs[i].PID = pe.th32ProcessID;
             pairs[i].PPID = pe.th32ParentProcessID;
             i++;
@@ -86,21 +145,19 @@ static processes_PidPair *processes_BuildPidMap(DWORD *outCount, clog_Arena *a)
     return pairs;
 }
 
-static DWORD processes_LookupPPID(DWORD pid, const processes_PidPair *pairs, DWORD count)
-{
-    if (pairs == NULL || count == 0) return 0;
+static DWORD processes_LookupPPID(DWORD pid, const processes_PidPair *pairs, DWORD count) {
+    if (pairs == NULL || count == 0)
+        return 0;
 
-    /* Linear lookup is fine at this scale; can be optimized if needed */
     for (DWORD i = 0; i < count; i++) {
-        if (pairs[i].PID == pid) return pairs[i].PPID;
+        if (pairs[i].PID == pid)
+            return pairs[i].PPID;
     }
+
     return 0;
 }
 
-/* ------------------------- Existing code ------------------------- */
-
-processes_Handle clog_processes_StartQuery(clog_Arena *a)
-{
+processes_Handle clog_processes_StartQuery(clog_Arena *a) {
     HANDLE eventRes = NULL;
     PDH_HQUERY queryRes = NULL;
     PDH_HCOUNTER idProcess, workingSet, processorTime;
@@ -108,24 +165,29 @@ processes_Handle clog_processes_StartQuery(clog_Arena *a)
     processes_State *state = clog_ArenaAlloc(a, processes_State, 1);
 
     state->ErrorCode = PdhOpenQuery(NULL, 0, &queryRes);
-    if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
+    if (state->ErrorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\ID Process", 0, &idProcess);
-    if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
+    if (state->ErrorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\Working Set - Private", 0, &workingSet);
-    if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
+    if (state->ErrorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\% Processor Time", 0, &processorTime);
-    if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
+    if (state->ErrorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     eventRes = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (eventRes == NULL) goto Cleanup;
+    if (eventRes == NULL)
+        goto Cleanup;
 
     PdhCollectQueryData(queryRes);
-    /* PdhCollectQueryDataEx does in fact not perform an initial query */
     state->ErrorCode = PdhCollectQueryDataEx(queryRes, PROCESSES_BENCHMARK_SECONDS, eventRes);
-    if (state->ErrorCode != ERROR_SUCCESS) goto Cleanup;
+    if (state->ErrorCode != ERROR_SUCCESS)
+        goto Cleanup;
 
     state->Query = queryRes;
     state->IDProcess = idProcess;
@@ -136,30 +198,28 @@ processes_Handle clog_processes_StartQuery(clog_Arena *a)
     return state;
 
 Cleanup:
-    if (queryRes != NULL) PdhCloseQuery(queryRes);
-    if (eventRes != NULL) CloseHandle(eventRes);
+    if (queryRes != NULL)
+        PdhCloseQuery(queryRes);
+    if (eventRes != NULL)
+        CloseHandle(eventRes);
     return state;
 }
 
-CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a)
-{
-    /* TODO: Cache lookups */
+CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) {
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
     clog_Defer(a, process, RETURN_INT, &CloseHandle);
 
     HANDLE processToken = NULL;
-    if (!OpenProcessToken(process, TOKEN_QUERY, &processToken)) {
+    if (!OpenProcessToken(process, TOKEN_QUERY, &processToken))
         return "-";
-    }
     clog_Defer(a, processToken, RETURN_INT, &CloseHandle);
 
     DWORD userSIDbufsize = 0;
     GetTokenInformation(processToken, TokenUser, NULL, 0, &userSIDbufsize);
     BYTE userSID[userSIDbufsize];
 
-    if (!GetTokenInformation(processToken, TokenUser, (TOKEN_USER *)userSID, userSIDbufsize, &userSIDbufsize)) {
+    if (!GetTokenInformation(processToken, TokenUser, (TOKEN_USER *)userSID, userSIDbufsize, &userSIDbufsize))
         return "-";
-    }
 
     DWORD userBufsize = 256, domainBufsize = 256;
     CHAR username[userBufsize];
@@ -174,8 +234,7 @@ CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a)
     return result;
 }
 
-processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena *a)
-{
+processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena *a) {
     processes_Table result = {0};
 
     result.ErrorCode = WaitForSingleObject(state->Event, PROCESSES_BENCHMARK_SECONDS * 1500);
@@ -205,7 +264,6 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
         result.NumRows = numItems;
         processes_TableRow *rows = clog_ArenaAlloc(a, processes_TableRow, numItems);
 
-        /* Build PID->PPID map once */
         DWORD pidMapCount = 0;
         processes_PidPair *pidMap = processes_BuildPidMap(&pidMapCount, a);
 
@@ -217,7 +275,6 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
             memcpy(heapProcessName, processName, processNameLen + 1);
 
             LONG processID = ((PDH_FMT_COUNTERVALUE_ITEM *)idProcesses)[i].FmtValue.longValue;
-
             CHAR *user = processes_GetProcessUser((DWORD)processID, a);
             DWORD ppid = processes_LookupPPID((DWORD)processID, pidMap, pidMapCount);
 
@@ -226,10 +283,12 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
             rows[i] = (processes_TableRow){
                 .Process = heapProcessName,
                 .PID = processID,
-                .PPID = ppid, /* added */
+                .PPID = ppid,
                 .User = user,
                 .CPU = ((PDH_FMT_COUNTERVALUE_ITEM *)processorTimes)[i].FmtValue.doubleValue,
-                .Memory = ((PDH_FMT_COUNTERVALUE_ITEM *)workingSets)[i].FmtValue.largeValue
+                .Memory = ((PDH_FMT_COUNTERVALUE_ITEM *)workingSets)[i].FmtValue.largeValue,
+                .NumServices = 0,
+                .Services = NULL,
             };
         }
         result.Rows = rows;
@@ -239,10 +298,74 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
     return result;
 }
 
-void processes_AppendTable(processes_Table t, DWORD maxNumRows, clog_Arena *a)
-{
-    clog_ArenaAppend(a, "\n%-31s\t%6s\t%6s\t%-31s\t%7s\t%12s\n",
-                     "PROCESS", "PID", "PPID", "USER", "CPU", "MEMORY");
+static void processes_AttachServicesToRows(processes_Table *table, const char *svcBuffer) {
+    if (table == NULL || table->Rows == NULL || svcBuffer == NULL)
+        return;
+
+    CHAR *dup = _strdup(svcBuffer);
+    if (dup == NULL)
+        return;
+
+    CHAR *line = strtok(dup, "\r\n");
+    if (line != NULL)
+        line = strtok(NULL, "\r\n");
+
+    while (line != NULL) {
+        trim_in_place(line);
+        if (line[0] == '\0') {
+            line = strtok(NULL, "\r\n");
+            continue;
+        }
+
+        char *fields[3];
+        int numFields = split_3_csv(line, fields);
+        if (numFields == 3) {
+            LONG pid = (LONG)strtol(fields[1], NULL, 10);
+            for (DWORD i = 0; i < table->NumRows; i++) {
+                if (table->Rows[i].PID == pid) {
+                    CHAR *svcCopy = _strdup(fields[2]);
+                    if (svcCopy == NULL)
+                        break;
+
+                    CHAR *ctx = NULL;
+                    CHAR *svcToken = strtok_s(svcCopy, ",", &ctx);
+                    DWORD svcCount = 0;
+                    DWORD svcCapacity = 4;
+                    CHAR **services = calloc(svcCapacity, sizeof(*services));
+                    if (services != NULL) {
+                        while (svcToken != NULL) {
+                            trim_in_place(svcToken);
+                            if (svcToken[0] != '\0') {
+                                if (svcCount >= svcCapacity) {
+                                    DWORD newCap = svcCapacity * 2;
+                                    CHAR **newList = realloc(services, newCap * sizeof(*newList));
+                                    if (newList == NULL)
+                                        break;
+                                    services = newList;
+                                    svcCapacity = newCap;
+                                }
+                                services[svcCount++] = _strdup(svcToken);
+                            }
+                            svcToken = strtok_s(NULL, ",", &ctx);
+                        }
+                        table->Rows[i].NumServices = svcCount;
+                        table->Rows[i].Services = services;
+                    }
+                    free(svcCopy);
+                    break;
+                }
+            }
+        }
+
+        line = strtok(NULL, "\r\n");
+    }
+
+    free(dup);
+}
+
+void processes_AppendTable(processes_Table t, DWORD maxNumRows, clog_Arena *a) {
+    clog_ArenaAppend(a, "\n%-31s\t%6s\t%6s\t%-31s\t%7s\t%12s\t%-31s\n",
+                     "PROCESS", "PID", "PPID", "USER", "CPU", "MEMORY", "SERVICES");
 
     if (t.ErrorCode != ERROR_SUCCESS) {
         clog_ArenaAppend(a, "(Unable to query processes, error code %#0x.)", t.ErrorCode);
@@ -261,18 +384,33 @@ void processes_AppendTable(processes_Table t, DWORD maxNumRows, clog_Arena *a)
         else
             clog_utils_PrettyBytes(t.Rows[i].Memory, 0, memoryBuf);
 
-        clog_ArenaAppend(a, "%-31s\t%6ld\t%6lu\t%-31s\t%5.1lf %%\t%12s\n",
+        CHAR servicesText[512] = {0};
+        if (t.Rows[i].NumServices > 0 && t.Rows[i].Services != NULL) {
+            size_t used = 0;
+            for (DWORD s = 0; s < t.Rows[i].NumServices; s++) {
+                size_t len = strlen(t.Rows[i].Services[s]);
+                if (used + len + 1 >= sizeof(servicesText))
+                    break;
+                if (s > 0) {
+                    servicesText[used++] = ',';
+                }
+                memcpy(&servicesText[used], t.Rows[i].Services[s], len + 1);
+                used += len;
+            }
+        }
+
+        clog_ArenaAppend(a, "%-31s\t%6ld\t%6lu\t%-31s\t%5.1lf %%\t%12s\t%-31s\n",
                          t.Rows[i].Process,
                          t.Rows[i].PID,
                          (unsigned long)t.Rows[i].PPID,
                          t.Rows[i].User,
                          t.Rows[i].CPU,
-                         memoryBuf);
+                         memoryBuf,
+                         servicesText[0] != '\0' ? servicesText : "-");
     }
 }
 
-INT8 processes__CompareName(processes_TableRow *a, processes_TableRow *b)
-{
+INT8 processes__CompareName(processes_TableRow *a, processes_TableRow *b) {
     INT8 res = -_stricmp(a->Process, b->Process);
     if (res == 0) {
         return a->PID > b->PID ? 1 : -1;
@@ -281,8 +419,7 @@ INT8 processes__CompareName(processes_TableRow *a, processes_TableRow *b)
     }
 }
 
-INT8 processes__CompareCPU(processes_TableRow *a, processes_TableRow *b)
-{
+INT8 processes__CompareCPU(processes_TableRow *a, processes_TableRow *b) {
     if (a->CPU > b->CPU) {
         return 1;
     } else if (a->CPU < b->CPU) {
@@ -292,8 +429,7 @@ INT8 processes__CompareCPU(processes_TableRow *a, processes_TableRow *b)
     }
 }
 
-INT8 processes__CompareMemory(processes_TableRow *a, processes_TableRow *b)
-{
+INT8 processes__CompareMemory(processes_TableRow *a, processes_TableRow *b) {
     if (a->Memory > b->Memory) {
         return 1;
     } else if (a->Memory < b->Memory) {
@@ -304,8 +440,7 @@ INT8 processes__CompareMemory(processes_TableRow *a, processes_TableRow *b)
 }
 
 void processes__HelperSortBy(processes_TableRow **p, INT8 (*compare)(processes_TableRow *, processes_TableRow *),
-                            DWORD start, DWORD end)
-{
+                             DWORD start, DWORD end) {
     if (end - start > 1) {
         processes_TableRow *res[end - start];
         DWORD mid = (end + start) / 2;
@@ -325,35 +460,42 @@ void processes__HelperSortBy(processes_TableRow **p, INT8 (*compare)(processes_T
             }
         }
 
-        for (; i < mid - start; i++) res[i + j] = p[start + i];
-        for (; j < end - mid; j++) res[i + j] = p[mid + j];
+        for (; i < mid - start; i++)
+            res[i + j] = p[start + i];
+        for (; j < end - mid; j++)
+            res[i + j] = p[mid + j];
 
-        for (DWORD k = 0; k < end - start; k++) {
+        for (DWORD k = 0; k < end - start; k++)
             p[k + start] = res[k];
-        }
     }
 }
 
-void processes_SortBy(processes_Table *p, INT8 (*compare)(processes_TableRow *, processes_TableRow *), clog_Arena *a)
-{
+void processes_SortBy(processes_Table *p, INT8 (*compare)(processes_TableRow *, processes_TableRow *), clog_Arena *a) {
     processes_TableRow *res[p->NumRows];
-    for (DWORD i = 0; i < p->NumRows; i++) res[i] = &p->Rows[i];
+    for (DWORD i = 0; i < p->NumRows; i++)
+        res[i] = &p->Rows[i];
 
     processes__HelperSortBy(res, compare, 0, p->NumRows);
 
     processes_TableRow *sorted = clog_ArenaAlloc(a, processes_TableRow, p->NumRows);
-    for (DWORD i = 0; i < p->NumRows; i++) sorted[i] = *res[i];
+    for (DWORD i = 0; i < p->NumRows; i++)
+        sorted[i] = *res[i];
 
     p->Rows = sorted;
 }
 
-void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a)
-{
+void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
     processes_State *startedQuery = (processes_State *)h;
     processes_Table endedQuery;
 
-    if (startedQuery->ErrorCode == ERROR_SUCCESS) {
+    if (startedQuery->ErrorCode == ERROR_SUCCESS)
         endedQuery = processes_AwaitSummarizeQuery(startedQuery, a);
+
+    char svcBuffer[0x10000];
+    char *cmdline = "tasklist /svc /fo csv";
+    DWORD failed = clog_utils_RunCmdSynchronouslyToBuffer(cmdline, svcBuffer, sizeof(svcBuffer));
+    if (!failed && endedQuery.Rows != NULL) {
+        processes_AttachServicesToRows(&endedQuery, svcBuffer);
     }
 
     clog_ArenaAppend(a, "[processes]");
@@ -382,12 +524,12 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a)
         processes_SortBy(&endedQuery, &processes__CompareMemory, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
     }
+
+
     clog_utils_TrimTrailingNewlines(a, NULL);
     clog_ArenaAppend(a, "\n");
 }
-
-void _processes(clog_Arena scratch)
-{
+void _processes(clog_Arena scratch) {
     /* This function should ideally not be used.
        It is better to separate the calls to processes_StartQuery and processes_EndAppendQuery,
        since there is a 1 second timer on processes_EndAppendQuery. So we can process other
@@ -397,12 +539,11 @@ void _processes(clog_Arena scratch)
     /* BIIGHANDLE */
     clog_processes_EndAppendQuery(h, &scratch);
 }
-
 #ifdef STANDALONE
-int main(int argc, TCHAR *argv[])
-{
+int main(int argc, TCHAR *argv[]) {
     clog_ArenaState *st = clog_ArenaMake(0x10000);
     _processes(st->Memory);
     printf("%s", st->Start);
 }
 #endif
+

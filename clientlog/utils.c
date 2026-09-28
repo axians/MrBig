@@ -1,5 +1,6 @@
 ﻿#include "clientlog.h"
 #include <math.h>
+#include <minwindef.h>
 
 /** Ensures that a string at most 'outSize' bytes worth of characters. Characters above
  * the limit (and 3 character before) are replaced with two period characters, i.e. "..".
@@ -82,6 +83,26 @@ void clog_utils_TrimTrailingNewlines(clog_Arena *scratch, BYTE *from) {
     if (state->CurrentStart < state->End) {
         *state->CurrentStart = '\0';
     }
+}
+
+/** Run a shell command and capture its output to a buffer. The buffer will be null-terminated.
+ *
+ *
+ * @return ERROR_SUCCESS if the command finished successfully, otherwise an error code.
+ */
+DWORD clog_utils_RunCmdSynchronouslyToBuffer(CHAR *cmdline, CHAR *buffer, size_t bufferSize) {
+    clog_ArenaState *scratchState = clog_ArenaMake(bufferSize);
+    if (!scratchState || !scratchState->Start || !scratchState->End || !scratchState->CurrentStart) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    clog_Arena scratch = scratchState->Memory;
+
+    DWORD status = clog_utils_RunCmdSynchronously(cmdline, scratch);
+
+    strncpy(buffer, (char *)scratchState->Start, bufferSize - 1);
+    buffer[bufferSize - 1] = '\0';
+
+    return status;
 }
 
 /** Run a shell command. Callers should call clog_PopDeferAll(&scratch) after this function has been used.
