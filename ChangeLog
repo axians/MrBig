@@ -1,3 +1,10 @@
+2026-09-28 Add clientlog event log channel configuration
+    Disable Application, Setup, or System event log monitoring with a disable
+    directive under [clientlog:eventlog] or [eventlog]. Settings are read from
+    both the remote cfg.cache and local mrbig.cfg. Share section parsing with
+    registry config loading, which reads cached configuration with a Sysnative
+    fallback.
+
 2026-09-17 Release MrBig-0.26.7-rc2
 
 2026-08-10 Add Clientlog startargs

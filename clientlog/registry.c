@@ -46,6 +46,11 @@ typedef struct {
     CHAR ValueName[REGISTRY_MAX_VALUE];
 } registry_ConfigItem;
 
+typedef struct {
+    registry_ConfigItem *items;
+    size_t *numItems;
+} registry_ConfigLoadContext;
+
 static BOOL registry_ItemsEqual(const registry_Item *a,
                                 const registry_Item *b) {
     if (a == NULL || b == NULL)
@@ -250,14 +255,32 @@ static BOOL registry_AddItemFromPath(const CHAR *line,
     return TRUE;
 }
 
+static BOOL registry_AddConfigLine(const CHAR *path, DWORD lineNo,
+                                   const CHAR *line, void *ctx) {
+    CHAR parseLine[REGISTRY_MAX_LINE];
+    registry_ConfigLoadContext *loadCtx = (registry_ConfigLoadContext *)ctx;
+
+    if (loadCtx == NULL || loadCtx->items == NULL || loadCtx->numItems == NULL)
+        return FALSE;
+    if (*loadCtx->numItems >= REGISTRY_MAX_CONFIG_ITEMS) {
+        return FALSE;
+    }
+
+    snprintf(parseLine, sizeof(parseLine), "%s", line);
+    if (!registry_AddItemFromPath(parseLine, loadCtx->items,
+                                  loadCtx->numItems)) {
+        LOG_DEBUG("\tregistry.c: Ignoring registry entry at %s:%lu "
+                  "(invalid or duplicate) -> '%s'.",
+                  path, lineNo, line);
+    }
+
+    return *loadCtx->numItems < REGISTRY_MAX_CONFIG_ITEMS;
+}
+
 static VOID registry_LoadConfigFile(const CHAR *path,
                                     registry_ConfigItem *items,
                                     size_t *numItems) {
-    FILE *fp;
-    CHAR line[REGISTRY_MAX_LINE];
-    CHAR parseLine[REGISTRY_MAX_LINE];
-    DWORD lineNo = 0;
-    BOOL inRegistrySection = FALSE;
+    registry_ConfigLoadContext ctx;
     size_t beforeCount;
 
     if (path == NULL || items == NULL || numItems == NULL)
@@ -266,61 +289,43 @@ static VOID registry_LoadConfigFile(const CHAR *path,
         return;
 
     beforeCount = *numItems;
-    fp = fopen(path, "r");
-    if (fp == NULL) {
-        LOG_DEBUG(
-            "\tregistry.c: Could not open config file '%s' (errno=%d: %s).",
-            path, errno, strerror(errno));
-        return;
-    }
-
-    LOG_DEBUG("\tregistry.c: Reading config from '%s'.", path);
-
-    while (fgets(line, sizeof(line), fp) != NULL) {
-        lineNo++;
-        registry_Trim(line);
-
-        if (line[0] == '\0' || line[0] == '#')
-            continue;
-
-        if (line[0] == '[') {
-            inRegistrySection = (_stricmp(line, "[clientlog:registry]") == 0 ||
-                                 _stricmp(line, "[registry]") == 0);
-            if (inRegistrySection) {
-                LOG_DEBUG("\tregistry.c: Found registry section at %s:%lu.",
-                          path, lineNo);
-            }
-            continue;
-        }
-
-        // Ignore directives such as .include/.config for this module.
-        if (line[0] == '.')
-            continue;
-
-        if (inRegistrySection) {
-            snprintf(parseLine, sizeof(parseLine), "%s", line);
-            if (!registry_AddItemFromPath(parseLine, items, numItems)) {
-                LOG_DEBUG("\tregistry.c: Ignoring registry entry at %s:%lu "
-                          "(invalid or "
-                          "duplicate) -> '%s'.",
-                          path, lineNo, line);
-            }
-            if (*numItems >= REGISTRY_MAX_CONFIG_ITEMS)
-                break;
-        }
-    }
-
-    fclose(fp);
+    ctx.items = items;
+    ctx.numItems = numItems;
+    clog_utils_ReadConfigSection(path, "registry", registry_AddConfigLine,
+                                 &ctx);
     LOG_DEBUG("\tregistry.c: Loaded %llu registry item(s) from '%s'.",
               (unsigned long long)(*numItems - beforeCount), path);
+}
+
+static BOOL registry_BuildCfgCachePath(const CHAR *systemRoot,
+                                       const CHAR *systemDir, CHAR *path,
+                                       size_t pathSize) {
+    size_t rootLen;
+    int ret;
+
+    if (systemRoot == NULL || systemRoot[0] == '\0' || systemDir == NULL ||
+        path == NULL || pathSize == 0) {
+        return FALSE;
+    }
+
+    rootLen = strlen(systemRoot);
+    if (rootLen > 0 && (systemRoot[rootLen - 1] == '\\' ||
+                        systemRoot[rootLen - 1] == '/')) {
+        ret = snprintf(path, pathSize, "%s%s\\cfg.cache", systemRoot,
+                       systemDir);
+    } else {
+        ret = snprintf(path, pathSize, "%s\\%s\\cfg.cache", systemRoot,
+                       systemDir);
+    }
+
+    return ret >= 0 && (size_t)ret < pathSize;
 }
 
 static VOID registry_GetConfiguredItems(registry_ConfigItem *items,
                                         size_t *numItems, CHAR *sourceOut,
                                         size_t sourceOutSize) {
     const CHAR *systemRoot = getenv("SystemRoot");
-    CHAR system32CfgCachePath[REGISTRY_MAX_LINE];
-    CHAR sysnativeCfgCachePath[REGISTRY_MAX_LINE];
+    CHAR cfgCachePath[REGISTRY_MAX_LINE];
 
     if (items == NULL || numItems == NULL) {
         if (sourceOut != NULL && sourceOutSize > 0) {
@@ -336,60 +341,25 @@ static VOID registry_GetConfiguredItems(registry_ConfigItem *items,
     *numItems = 0;
     registry_AddDefaultItems(items, numItems);
 
-    if (systemRoot != NULL && systemRoot[0] != '\0') {
-        CHAR sep = '\\';
-        size_t rootLen = strlen(systemRoot);
-        int ret;
-
-        if (sep == '\\') {
-            ret = snprintf(system32CfgCachePath, sizeof(system32CfgCachePath),
-                           "%s\\System32\\cfg.cache", systemRoot);
-        } else {
-            ret = snprintf(system32CfgCachePath, sizeof(system32CfgCachePath),
-                           "%sSystem32\\cfg.cache", systemRoot);
-        }
-
-        if (rootLen > 0 && (systemRoot[rootLen - 1] == '\\' ||
-                            systemRoot[rootLen - 1] == '/')) {
-            sep = '\0';
-        }
-        if (ret < 0 || (size_t)ret >= sizeof(system32CfgCachePath)) {
-            /* Path was truncated or formatting failed. */
-            return;
-        }
+    if (registry_BuildCfgCachePath(systemRoot, "System32", cfgCachePath,
+                                   sizeof(cfgCachePath))) {
         size_t beforeConfigCount = *numItems;
-        registry_LoadConfigFile(system32CfgCachePath, items, numItems);
+        registry_LoadConfigFile(cfgCachePath, items, numItems);
         if (*numItems > beforeConfigCount && sourceOut != NULL &&
             sourceOutSize > 0) {
-            snprintf(sourceOut, sourceOutSize, "%s", system32CfgCachePath);
+            snprintf(sourceOut, sourceOutSize, "%s", cfgCachePath);
         }
 
         // On 32-bit processes running on 64-bit Windows, System32 can be
         // redirected. Try Sysnative as a fallback view of real System32.
-        if (*numItems == 0) {
-            if (sep == '\\') {
-                snprintf(sysnativeCfgCachePath, sizeof(sysnativeCfgCachePath),
-                         "%s\\Sysnative\\cfg.cache", systemRoot);
-            } else {
-                snprintf(sysnativeCfgCachePath, sizeof(sysnativeCfgCachePath),
-                         "%sSysnative\\cfg.cache", systemRoot);
-            }
-
-            size_t beforeConfigCount = *numItems;
-            registry_LoadConfigFile(sysnativeCfgCachePath, items, numItems);
+        if (*numItems == beforeConfigCount &&
+            registry_BuildCfgCachePath(systemRoot, "Sysnative", cfgCachePath,
+                                       sizeof(cfgCachePath))) {
+            registry_LoadConfigFile(cfgCachePath, items, numItems);
             if (*numItems > beforeConfigCount && sourceOut != NULL &&
                 sourceOutSize > 0) {
-                snprintf(sourceOut, sourceOutSize, "%s", sysnativeCfgCachePath);
+                snprintf(sourceOut, sourceOutSize, "%s", cfgCachePath);
             }
-        }
-    }
-
-    {
-        size_t beforeConfigCount = *numItems;
-        registry_LoadConfigFile("mrbig.cfg", items, numItems);
-        if (*numItems > beforeConfigCount && sourceOut != NULL &&
-            sourceOutSize > 0) {
-            snprintf(sourceOut, sourceOutSize, "%s", "mrbig.cfg");
         }
     }
 

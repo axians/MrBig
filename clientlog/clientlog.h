@@ -30,6 +30,11 @@ enum clog_utils_PrettyTimestampFlags {
 LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t outSize);
 DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch);
 void clog_utils_TrimTrailingNewlines(clog_Arena *scratch, BYTE *from);
+typedef BOOL (*clog_utils_ConfigSectionLineFn)(const CHAR *path, DWORD lineNo,
+                                               const CHAR *line, void *ctx);
+BOOL clog_utils_ReadConfigSection(const CHAR *path, const CHAR *sectionName,
+                                  clog_utils_ConfigSectionLineFn onLine,
+                                  void *ctx);
 
 /* applications */
 void clog_applications(clog_Arena scratch);
