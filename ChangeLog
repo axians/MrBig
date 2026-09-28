@@ -1,3 +1,6 @@
+2026-09-28 Add SERVICE column to clientlog processes tables
+    These show more in depth which services the procs are connected to
+
 2026-09-17 Release MrBig-0.26.7-rc2
 
 2026-08-10 Add Clientlog startargs
