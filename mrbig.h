@@ -95,6 +95,8 @@ extern void clear_cfg(void);
 extern void add_cfg(char *name, char *cfg);
 extern int get_cfg(char *name, char *b, size_t n, int line);
 extern void read_cfg(char *cat, char *filename);
+extern void msg_add_clog_iframe(char *msg, size_t msgpos, size_t size, const char *clog_section, char *machine);
+
 
 /* snarfed from openbsd */
 extern size_t strlcat(char *, const char *, size_t);
