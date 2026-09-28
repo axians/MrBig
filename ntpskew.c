@@ -21,8 +21,8 @@
  * NT5DS: prefer active Source from w32tm /query /status;
  *        if source is local/free-running, parse configured NtpServer peers.
  *        if no peers are configured, fallback to one empty entry → local
- * service. NTP/AllSync: parses NtpServer value, strips ",flags". Returns count
- * (0 on error).
+ *        service. NTP/AllSync: parses NtpServer value, strips ",flags". 
+ * Returns count (0 on error).
  */
 static int get_ntp_servers(char servers[NTP_MAX_SERVERS][NTP_SERVER_LEN]) {
     /* For NT5DS, ask w32tm which upstream source is currently used. */
