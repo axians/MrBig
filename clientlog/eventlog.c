@@ -1,22 +1,34 @@
 #include "arena.h"
 #include "clientlog.h"
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <winevt.h>
 
 #define MAX_PROVIDER_NAME_LENGTH (255)
 #define MAX_EVENT_MESSAGE_SIZE (0x1000) // 4 KB
 #define MAX_EVENTLOG_ROW_SIZE (512)
+#define EVENTLOG_CONFIG_MAX_LINE (1024)
 
 // Due to string literal concatenation in EvtQuery below, you must treat this as a string (not a number) when modifying
 // For example, a writing 3600 * 1000 instead of 3600000 will not work
 #define MAX_EVENT_AGE_MS 3600000
 
-static WCHAR *CHANNELS[] = {
-    L"Application",
-    L"Setup",
-    L"System",
+typedef struct {
+    LPCWSTR ChannelName;
+    LPCSTR ConfigName;
+} eventlog_Channel;
+
+static eventlog_Channel CHANNELS[] = {
+    {L"Application", "application"},
+    {L"Setup", "setup"},
+    {L"System", "system"},
 };
 static size_t NUM_CHANNELS = sizeof(CHANNELS) / sizeof(*CHANNELS);
+
+typedef struct {
+    BOOL *channelEnabled;
+} eventlog_ConfigContext;
 
 typedef struct {
     ULONGLONG Timestamp;
@@ -25,6 +37,131 @@ typedef struct {
     UINT16 EventID;
     UINT8 Level;
 } eventlog_Event;
+
+static BOOL eventlog_BuildCfgCachePath(const CHAR *systemRoot,
+                                       const CHAR *systemDir, CHAR *path,
+                                       size_t pathSize) {
+    size_t rootLen;
+    int ret;
+
+    if (systemRoot == NULL || systemRoot[0] == '\0' || systemDir == NULL ||
+        path == NULL || pathSize == 0) {
+        return FALSE;
+    }
+
+    rootLen = strlen(systemRoot);
+    if (rootLen > 0 && (systemRoot[rootLen - 1] == '\\' ||
+                        systemRoot[rootLen - 1] == '/')) {
+        ret = snprintf(path, pathSize, "%s%s\\cfg.cache", systemRoot,
+                       systemDir);
+    } else {
+        ret = snprintf(path, pathSize, "%s\\%s\\cfg.cache", systemRoot,
+                       systemDir);
+    }
+
+    return ret >= 0 && (size_t)ret < pathSize;
+}
+
+static BOOL eventlog_BuildLocalConfigPath(CHAR *path, size_t pathSize) {
+    DWORD pathLen;
+    CHAR *separator;
+    CHAR *forwardSeparator;
+    size_t directoryLen;
+
+    if (path == NULL || pathSize == 0 || pathSize > MAXDWORD)
+        return FALSE;
+
+    pathLen = GetModuleFileNameA(NULL, path, (DWORD)pathSize);
+    if (pathLen == 0 || pathLen >= pathSize)
+        return FALSE;
+
+    separator = strrchr(path, '\\');
+    forwardSeparator = strrchr(path, '/');
+    if (forwardSeparator != NULL &&
+        (separator == NULL || forwardSeparator > separator)) {
+        separator = forwardSeparator;
+    }
+    if (separator == NULL)
+        return FALSE;
+
+    directoryLen = (size_t)(separator - path) + 1;
+    if (directoryLen + sizeof("mrbig.cfg") > pathSize)
+        return FALSE;
+
+    strcpy(path + directoryLen, "mrbig.cfg");
+    return TRUE;
+}
+
+static BOOL eventlog_DisableChannel(LPCSTR channelName,
+                                    BOOL *channelEnabled) {
+    if (channelName == NULL || channelEnabled == NULL)
+        return FALSE;
+
+    for (size_t i = 0; i < NUM_CHANNELS; i++) {
+        if (_stricmp(channelName, CHANNELS[i].ConfigName) == 0) {
+            channelEnabled[i] = FALSE;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+static BOOL eventlog_LoadConfigLine(const CHAR *path, DWORD lineNo,
+                                    const CHAR *line, void *ctx) {
+    CHAR command[32];
+    CHAR channelName[32];
+    CHAR extra[2];
+    eventlog_ConfigContext *config = (eventlog_ConfigContext *)ctx;
+    int fields;
+
+    if (line == NULL || config == NULL || config->channelEnabled == NULL)
+        return FALSE;
+
+    fields = sscanf(line, "%31s %31s %1s", command, channelName, extra);
+    if (fields == 2 && _stricmp(command, "disable") == 0 &&
+        eventlog_DisableChannel(channelName, config->channelEnabled)) {
+        LOG_DEBUG("\teventlog.c: Disabled event log channel '%s' from %s:%lu.",
+                  channelName, path, lineNo);
+    } else {
+        LOG_DEBUG("\teventlog.c: Ignoring eventlog config at %s:%lu -> '%s'.",
+                  path, lineNo, line);
+    }
+
+    return TRUE;
+}
+
+static VOID eventlog_LoadConfig(BOOL *channelEnabled) {
+    const CHAR *systemRoot = getenv("SystemRoot");
+    CHAR cfgCachePath[EVENTLOG_CONFIG_MAX_LINE];
+    CHAR localConfigPath[EVENTLOG_CONFIG_MAX_LINE];
+    eventlog_ConfigContext config;
+    BOOL cfgCacheRead = FALSE;
+
+    if (channelEnabled == NULL)
+        return;
+
+    config.channelEnabled = channelEnabled;
+    if (eventlog_BuildCfgCachePath(systemRoot, "System32", cfgCachePath,
+                                   sizeof(cfgCachePath)) &&
+        clog_utils_ReadConfigSection(cfgCachePath, "eventlog",
+                                     eventlog_LoadConfigLine, &config)) {
+        cfgCacheRead = TRUE;
+    }
+
+    if (!cfgCacheRead &&
+        eventlog_BuildCfgCachePath(systemRoot, "Sysnative", cfgCachePath,
+                                   sizeof(cfgCachePath))) {
+        clog_utils_ReadConfigSection(cfgCachePath, "eventlog",
+                                     eventlog_LoadConfigLine, &config);
+    }
+
+    if (eventlog_BuildLocalConfigPath(localConfigPath,
+                                      sizeof(localConfigPath))) {
+        clog_utils_ReadConfigSection(localConfigPath, "eventlog",
+                                     eventlog_LoadConfigLine, &config);
+    }
+}
 
 LPCSTR eventlog_PrettyEventLevel(UINT8 level) {
     switch (level) {
@@ -139,12 +276,27 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
 
 void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
     CHAR eventBuffer[MAX_EVENTLOG_ROW_SIZE];
+    BOOL channelEnabled[sizeof(CHANNELS) / sizeof(*CHANNELS)];
+
+    for (DWORD channelIx = 0; channelIx < NUM_CHANNELS; channelIx++) {
+        channelEnabled[channelIx] = TRUE;
+    }
+    eventlog_LoadConfig(channelEnabled);
+
     for (DWORD channelIx = 0; channelIx < NUM_CHANNELS; channelIx++) {
         CHAR channelName[32];
-        wcstombs(channelName, CHANNELS[channelIx], 32);
+        wcstombs(channelName, CHANNELS[channelIx].ChannelName, 32);
+        if (!channelEnabled[channelIx]) {
+            clog_ArenaAppend(&scratch, "[eventlog_%s]", CharLowerA(channelName));
+            clog_ArenaAppend(&scratch, "\n(Channel monitoring was disabled by config.)");
+            clog_ArenaAppend(&scratch, "\n");
+            clog_ArenaAppend(&scratch, "\n");
+            continue;
+        }
+
         clog_ArenaAppend(&scratch, "[eventlog_%s]", CharLowerA(channelName));
 
-        EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx], L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= " STR(MAX_EVENT_AGE_MS) "]]", EvtQueryChannelPath | EvtQueryReverseDirection);
+        EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx].ChannelName, L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= " STR(MAX_EVENT_AGE_MS) "]]", EvtQueryChannelPath | EvtQueryReverseDirection);
         clog_Defer(&scratch, hLog, RETURN_INT, &EvtClose);
 
         EVT_HANDLE event[maxNumEvents];
@@ -160,7 +312,7 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
                 clog_PopDefer(&scratch);
             }
         } else {
-            clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %lfh.)", MAX_EVENT_AGE_MS / 3600000.0);
+            clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %dh.)", MAX_EVENT_AGE_MS / 3600000);
         }
         clog_ArenaAppend(&scratch, "\n");
         clog_ArenaAppend(&scratch, "\n");

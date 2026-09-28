@@ -1,6 +1,111 @@
-﻿#include "clientlog.h"
+#include "clientlog.h"
+#include <errno.h>
 #include <math.h>
 #include <minwindef.h>
+#include <string.h>
+
+#define CLOG_CONFIG_MAX_LINE 1024
+
+static VOID clog_utils_TrimConfigLine(CHAR *s) {
+    size_t len;
+
+    if (s == NULL)
+        return;
+
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') {
+        memmove(s, s + 1, strlen(s));
+    }
+
+    len = strlen(s);
+    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' ||
+                       s[len - 1] == '\r' || s[len - 1] == '\n')) {
+        s[len - 1] = '\0';
+        len--;
+    }
+}
+
+static VOID clog_utils_StripConfigComment(CHAR *line) {
+    CHAR *comment;
+
+    if (line == NULL)
+        return;
+
+    comment = strchr(line, '#');
+    if (comment != NULL) {
+        *comment = '\0';
+        clog_utils_TrimConfigLine(line);
+    }
+}
+
+static BOOL clog_utils_IsConfigSection(const CHAR *line,
+                                       const CHAR *sectionName) {
+    CHAR expected[CLOG_CONFIG_MAX_LINE];
+    CHAR clientlogExpected[CLOG_CONFIG_MAX_LINE];
+
+    if (line == NULL || sectionName == NULL)
+        return FALSE;
+
+    snprintf(expected, sizeof(expected), "[%s]", sectionName);
+    snprintf(clientlogExpected, sizeof(clientlogExpected), "[clientlog:%s]",
+             sectionName);
+    return _stricmp(line, expected) == 0 ||
+           _stricmp(line, clientlogExpected) == 0;
+}
+
+/**
+ * section name get prefixed with "clientlog:"
+ *
+ */
+BOOL clog_utils_ReadConfigSection(const CHAR *path, const CHAR *sectionName,
+                                  clog_utils_ConfigSectionLineFn onLine,
+                                  void *ctx) {
+    FILE *fp;
+    DWORD lineNo = 0;
+    BOOL inSection = FALSE;
+    CHAR line[CLOG_CONFIG_MAX_LINE];
+
+    if (path == NULL || sectionName == NULL || onLine == NULL)
+        return FALSE;
+
+    fp = fopen(path, "r");
+    if (fp == NULL) {
+        LOG_DEBUG("\tutils.c: Could not open config file '%s' (errno=%d: %s).",
+                  path, errno, strerror(errno));
+        return FALSE;
+    }
+
+    LOG_DEBUG("\tutils.c: Reading config section '%s' from '%s'.", sectionName,
+              path);
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        lineNo++;
+        clog_utils_TrimConfigLine(line);
+        clog_utils_StripConfigComment(line);
+
+        if (line[0] == '\0')
+            continue;
+
+        if (line[0] == '[') {
+            inSection = clog_utils_IsConfigSection(line, sectionName);
+            if (inSection) {
+                LOG_DEBUG("\tutils.c: Found config section '%s' at %s:%lu.",
+                          sectionName, path, lineNo);
+            }
+            continue;
+        }
+
+        if (line[0] == '.')
+            continue;
+
+        if (inSection && !onLine(path, lineNo, line, ctx))
+            break;
+    }
+
+    fclose(fp);
+    return TRUE;
+}
+
+
 
 /** Ensures that a string at most 'outSize' bytes worth of characters. Characters above
  * the limit (and 3 character before) are replaced with two period characters, i.e. "..".
