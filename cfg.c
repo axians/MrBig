@@ -1,5 +1,6 @@
 
 #include "mrbig.h"
+#include <errno.h>
 
 #define CFG_MAX 32000
 #define CFG_CACHE_PATH_MAX 1000
@@ -112,17 +113,20 @@ static void recv_cfg(char *host, int port)
 	int temp_path_len;
 
 	if (debug > 1) mrlog("recv_cfg(%s, %d)", host, port);
-	if (debug > 1) mrlog("Opening cfg.cache");
-
 	failure = 0;
 	temp_path_len = snprintf(temp_path, sizeof temp_path, "%s-", cfg_cache_path);
 	if (temp_path_len < 0 || (size_t)temp_path_len >= sizeof temp_path) {
-		mrlog("recv_cfg: cache path is too long");
+		mrlog("recv_cfg: cache path is too long: '%s'", cfg_cache_path);
 		return;
+	}
+	if (debug > 1) {
+		mrlog("recv_cfg: opening temporary cache '%s' for target '%s'",
+			temp_path, cfg_cache_path);
 	}
 	fp = big_fopen("recv_cfg", temp_path, "w");
 	if (fp == NULL) {
-		mrlog("In recv_cfg: can't open cfg.cache- for writing");
+		mrlog("recv_cfg: can't open temporary cache '%s' for writing (errno %d)",
+			temp_path, errno);
 		return;
 	}
 	if (debug > 1) mrlog("Starting winsock");
@@ -238,8 +242,16 @@ Exit:
 	}
 	if (failure == 0) {
 		/* on windows, renaming to a name that exists is an error */
-		remove(cfg_cache_path);
-		rename(temp_path, cfg_cache_path);
+		if (remove(cfg_cache_path) != 0 && errno != ENOENT) {
+			mrlog("recv_cfg: can't remove existing cache '%s' (errno %d)",
+				cfg_cache_path, errno);
+		}
+		if (rename(temp_path, cfg_cache_path) != 0) {
+			mrlog("recv_cfg: can't move temporary cache '%s' to '%s' (errno %d)",
+				temp_path, cfg_cache_path, errno);
+		} else if (debug > 1) {
+			mrlog("recv_cfg: cached configuration at '%s'", cfg_cache_path);
+		}
 	}
 }
 
@@ -279,6 +291,9 @@ void read_cfg(char *cat, char *filename)
 			} else {
 				strlcpy(cfg_cache_path, q, sizeof cfg_cache_path);
 				cfg_cache_path_configured = 1;
+				if (debug > 1) {
+					mrlog("read_cfg: using cfg.cache path '%s'", cfg_cache_path);
+				}
 			}
 		} else if (!strncmp(b, ".config ", 8)) {
 			n = sscanf(b, ".config %s %d", host, &port);
