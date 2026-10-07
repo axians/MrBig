@@ -250,7 +250,7 @@ void *big_realloc(char *p, void *q, size_t n)
 	a = realloc(q, m);
 
 	if (debug > 2) {
-		mrlog("Reallocating %ld bytes to new address %p, on behalf of %s",	
+		mrlog("Reallocating %ld bytes to new address %p, on behalf of %s",
 			(long)m, a, p);
 	}
 
@@ -934,7 +934,7 @@ void msg_add_clog_iframe(char *msg, size_t msgpos, size_t size, const char *clog
 
 }
 
-/*	Send an update for clientlog style messages, which have logic configured serverside. 
+/*	Send an update for clientlog style messages, which have logic configured serverside.
 	The format is:
 		client [machine],[domain],[tld].[os] [os] [message] */
 void mrsend_clientlog(char *machine, char *message) {
@@ -1062,7 +1062,9 @@ void mrbig(void)
 			snprcat(now, sizeof now, " [%s]", hostname);
 		}
 
-        clientlog(mrmachine, &mrsend_clientlog, debug ? &mrlog : (void (*)(char *,...))NULL);
+		clientlog(mrmachine, &mrsend_clientlog,
+			  debug ? &mrlog : (void (*)(char *,...))NULL,
+			  get_cfg_cache_path());
         check_chunks("after clientlog test");
 
 		cpu();

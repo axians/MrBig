@@ -2,6 +2,7 @@
 #include "mrbig.h"
 
 #define CFG_MAX 32000
+#define CFG_CACHE_PATH_MAX 1000
 
 struct config {
 	char *name;
@@ -10,6 +11,13 @@ struct config {
 };
 
 static struct config *conf = NULL;
+static char cfg_cache_path[CFG_CACHE_PATH_MAX] = "cfg.cache";
+static int cfg_cache_path_configured = 0;
+
+const char *get_cfg_cache_path(void)
+{
+	return cfg_cache_path_configured ? cfg_cache_path : NULL;
+}
 
 void clear_cfg(void)
 {
@@ -97,15 +105,22 @@ static void recv_cfg(char *host, int port)
 	struct sockaddr_in in_addr, my_addr;
 	int n, s, failure;
 	char b[32000];
+	char temp_path[sizeof cfg_cache_path + 1];
 	FILE *fp;
 	struct linger l_optval;
 	unsigned long nonblock;
+	int temp_path_len;
 
 	if (debug > 1) mrlog("recv_cfg(%s, %d)", host, port);
 	if (debug > 1) mrlog("Opening cfg.cache");
 
 	failure = 0;
-	fp = big_fopen("recv_cfg", "cfg.cache-", "w");
+	temp_path_len = snprintf(temp_path, sizeof temp_path, "%s-", cfg_cache_path);
+	if (temp_path_len < 0 || (size_t)temp_path_len >= sizeof temp_path) {
+		mrlog("recv_cfg: cache path is too long");
+		return;
+	}
+	fp = big_fopen("recv_cfg", temp_path, "w");
 	if (fp == NULL) {
 		mrlog("In recv_cfg: can't open cfg.cache- for writing");
 		return;
@@ -223,8 +238,8 @@ Exit:
 	}
 	if (failure == 0) {
 		/* on windows, renaming to a name that exists is an error */
-		remove("cfg.cache");
-		rename("cfg.cache-", "cfg.cache");
+		remove(cfg_cache_path);
+		rename(temp_path, cfg_cache_path);
 	}
 }
 
@@ -233,6 +248,7 @@ void read_cfg(char *cat, char *filename)
 	FILE *fp;
 	char *q, host[1000], category[100], b[1000];
 	int n, port;
+	size_t path_len;
 
 	if (filename == NULL) return;
 
@@ -250,11 +266,25 @@ void read_cfg(char *cat, char *filename)
 			if (q) *q = '\0';
 		} else if (!strncmp(b, ".bind ", 6)) {
 			sscanf(b, ".bind %s", bind_addr);
+		} else if (!strncmp(b, ".cfgcache", 9) &&
+			   (b[9] == ' ' || b[9] == '\t')) {
+			q = b + 10;
+			while (*q == ' ' || *q == '\t') q++;
+			path_len = strlen(q);
+			while (path_len > 0 && (q[path_len - 1] == ' ' || q[path_len - 1] == '\t')) {
+				q[--path_len] = '\0';
+			}
+			if (path_len == 0 || path_len >= sizeof cfg_cache_path) {
+				mrlog("In read_cfg: bogus .cfgcache line");
+			} else {
+				strlcpy(cfg_cache_path, q, sizeof cfg_cache_path);
+				cfg_cache_path_configured = 1;
+			}
 		} else if (!strncmp(b, ".config ", 8)) {
 			n = sscanf(b, ".config %s %d", host, &port);
 			if (n == 2 && port != 0) {
 				recv_cfg(host, port);
-				read_cfg(category, "cfg.cache");
+				read_cfg(category, cfg_cache_path);
 			} else {
 				mrlog("In read_cfg: bogus .config line");
 			}

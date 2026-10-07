@@ -12,6 +12,8 @@ machine lifebook.qbranch.se
 #port 1984
 
 # The .config directive gets config from a server
+# Set the cache path before .config if you want a location other than cfg.cache
+#.cfgcache C:\MrBig\cfg.cache
 #.config 10.0.4.5 1985
 
 # The .include directives gets config from other files
