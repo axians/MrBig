@@ -1,3 +1,5 @@
 # Set all unix shell-files (*.sh) to always checkout using UNIX line endings
 # If we don't, then bash can't execute the file because of the extra \r before \n on windows.
 *.sh text eol=lf
+
+Makefile text eol=lf
