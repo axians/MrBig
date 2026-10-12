@@ -93,6 +93,6 @@ C:\windows\system32\cfg.cache by default. To use a different path,
 add a .cfgcache directive before .config in mrbig.cfg, for example:
 
 .cfgcache C:\MrBig\cfg.cache
-.config 10.0.4.5 1985
+.config 10.0.4.5 27016
 
 
