@@ -89,6 +89,10 @@ line in mrbig.cfg:
 The downloaded configuration is cached so that the client
 can continue running even if the configuration daemon
 is unavailable. The name of the cache file is
-C:\windows\system32\cfg.cache.
+C:\windows\system32\cfg.cache by default. To use a different path,
+add a .cfgcache directive before .config in mrbig.cfg, for example:
+
+.cfgcache C:\MrBig\cfg.cache
+.config 10.0.4.5 27016
 
 

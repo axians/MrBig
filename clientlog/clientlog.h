@@ -17,7 +17,8 @@ void clog_set_start_args(int argc, char **argv);
 int clog_get_start_argc(void);
 char **clog_get_start_argv(void);
 
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...));
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
+               void (*mrlog)(char *fmt, ...), const char *cfgCachePath);
 
 /* utils */
 LPSTR clog_utils_ClampString(LPSTR str, LPSTR out, size_t outSize);
@@ -88,7 +89,7 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a);
 void clog_reboots(DWORD maxNumReboots, clog_Arena scratch);
 
 /* registry */
-void clog_registry(clog_Arena scratch);
+void clog_registry(const char *cfgCachePath, clog_Arena scratch);
 
 /* runningservices */
 void clog_runningservices(clog_Arena scratch);

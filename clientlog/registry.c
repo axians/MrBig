@@ -322,7 +322,9 @@ static BOOL registry_BuildCfgCachePath(const CHAR *systemRoot,
 }
 
 static VOID registry_GetConfiguredItems(registry_ConfigItem *items,
-                                        size_t *numItems, CHAR *sourceOut,
+                                        size_t *numItems,
+                                        const char *configuredCachePath,
+                                        CHAR *sourceOut,
                                         size_t sourceOutSize) {
     const CHAR *systemRoot = getenv("SystemRoot");
     CHAR cfgCachePath[REGISTRY_MAX_LINE];
@@ -341,8 +343,15 @@ static VOID registry_GetConfiguredItems(registry_ConfigItem *items,
     *numItems = 0;
     registry_AddDefaultItems(items, numItems);
 
-    if (registry_BuildCfgCachePath(systemRoot, "System32", cfgCachePath,
-                                   sizeof(cfgCachePath))) {
+    if (configuredCachePath != NULL && configuredCachePath[0] != '\0') {
+        size_t beforeConfigCount = *numItems;
+        registry_LoadConfigFile(configuredCachePath, items, numItems);
+        if (*numItems > beforeConfigCount && sourceOut != NULL &&
+            sourceOutSize > 0) {
+            snprintf(sourceOut, sourceOutSize, "%s", configuredCachePath);
+        }
+    } else if (registry_BuildCfgCachePath(systemRoot, "System32", cfgCachePath,
+                                          sizeof(cfgCachePath))) {
         size_t beforeConfigCount = *numItems;
         registry_LoadConfigFile(cfgCachePath, items, numItems);
         if (*numItems > beforeConfigCount && sourceOut != NULL &&
@@ -538,14 +547,14 @@ static BOOL registry_TryReadAndAppendValue(const registry_Item *item,
     return TRUE;
 }
 
-void clog_registry(clog_Arena scratch) {
+void clog_registry(const char *cfgCachePath, clog_Arena scratch) {
     registry_ConfigItem configuredItems[REGISTRY_MAX_CONFIG_ITEMS];
     size_t numItems = 0;
     size_t numAttempted = 0;
     size_t numSucceeded = 0;
     CHAR configSource[REGISTRY_MAX_LINE];
-    registry_GetConfiguredItems(configuredItems, &numItems, configSource,
-                                sizeof(configSource));
+    registry_GetConfiguredItems(configuredItems, &numItems, cfgCachePath,
+                                configSource, sizeof(configSource));
 
     LOG_DEBUG("\tregistry.c: Config source '%s'.",
               configSource[0] ? configSource : "unknown");

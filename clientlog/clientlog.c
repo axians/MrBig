@@ -24,7 +24,8 @@ char **clog_get_start_argv(void) {
     return clog_start_argv;
 }
 
-void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), void (*mrlog)(char *fmt, ...)) {
+void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
+               void (*mrlog)(char *fmt, ...), const char *cfgCachePath) {
     clog_mrlog = mrlog;
     LOG_DEBUG("Clientlog start");
     clog_ArenaState *arenaState = clog_ArenaMake(0x100000); // 1 MB
@@ -118,7 +119,7 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message), vo
     RUN(clog_certificates, arena);
     clog_ArenaAppend(&arena, "\n");
 
-    RUN(clog_registry, arena);
+    RUN(clog_registry, cfgCachePath, arena);
     clog_ArenaAppend(&arena, "\n");
 
     RUN(clog_reboots, 5, arena);
@@ -154,7 +155,7 @@ void logfn(char *fmt, ...) {
 }
 
 int main(int argc, char *argv[]) {
-    clientlog("test", &sendfn, &logfn);
+    clientlog("test", &sendfn, &logfn, NULL);
     return 0;
 }
 #endif
