@@ -1,3 +1,5 @@
+2026-10-13 Release MrBig-0.26.7-rc4
+
 2026-10-12 Config to change location of cfg.cache
     configure with option .cfgcache BEFORE .include directive in mrbig.cfg
     Only configurable on device.
