@@ -40,6 +40,8 @@ BUILD_DATE=$(shell date +%y%m%d%H%M)
 GIT_HASH=$(shell git rev-parse --short HEAD)
 GIT_DIRTY=$(shell git diff --quiet || echo -dirty)
 BRANCH := $(shell echo $${GITHUB_HEAD_REF:-$${GITHUB_REF_NAME:-$$(git rev-parse --abbrev-ref HEAD)}})
+CLANG_FORMAT ?= clang-format
+FORMAT_FILES := $(shell git ls-files '*.c' '*.h')
 
 
 FILEVER_COMMA = $(shell echo $(VERSION) | sed 's/-.*//' | awk -F. '{printf "%s,%s,%s,0", $$1,$$2,$$3}')
@@ -69,7 +71,10 @@ endif
 all:
 	$(MAKE) -C X86 mrbig.exe
 	$(MAKE) -C X64 mrbig64.exe
-.PHONY: $(VER_RC) $(VER_RES)
+
+.PHONY: format $(VER_RC) $(VER_RES)
+format:
+	$(CLANG_FORMAT) -i $(FORMAT_FILES)
 
 $(VER_RC): version.rc.template
 	sed -e 's/@COMPANY@/$(COMPANY)/g' \

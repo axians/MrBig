@@ -1,0 +1,6 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+KeepEmptyLines:
+	AtEndOfFile: true
+SortIncludes: false
