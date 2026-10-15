@@ -3,13 +3,16 @@
 
 // Inspiration taken from https://nullprogram.com/blog/2023/09/27/
 // With some adjustments to fit MrBig.
-// The arena can allocate from both ends, the start (left) points to a append-only
-// string, i.e. cumulative output. Transient allocations are made from the end (right).
-// Conceptually: clog_Arena.Start -> ['o','u','t','p','u','t',...
+// The arena can allocate from both ends, the start (left) points to a
+// append-only string, i.e. cumulative output. Transient allocations are made
+// from the end (right). Conceptually: clog_Arena.Start ->
+// ['o','u','t','p','u','t',...
 //               clog_Arena.End   ->  ...,32,'c','h', 4,'r',0]
 
-// Prefer the macro 'clog_ArenaAlloc' from arena.h instead of 'clog__ArenaAllocate'
-void *clog__ArenaAllocate(clog_Arena *a, size_t size, size_t align, size_t count) {
+// Prefer the macro 'clog_ArenaAlloc' from arena.h instead of
+// 'clog__ArenaAllocate'
+void *clog__ArenaAllocate(clog_Arena *a, size_t size, size_t align,
+                          size_t count) {
     BYTE *aStart = ((clog_ArenaState *)a->State)->CurrentStart;
     ptrdiff_t freeBytes = a->End - aStart;
     ptrdiff_t amountToAllocate = count * size;
@@ -18,7 +21,10 @@ void *clog__ArenaAllocate(clog_Arena *a, size_t size, size_t align, size_t count
     }
 
     BYTE *naiveEnd = a->End - amountToAllocate;
-    BYTE *actualEnd = (BYTE *)((size_t)naiveEnd & -align); // n.b. given align = 2^n, then x & -align zeros out the n-1 least significant bits of x
+    BYTE *actualEnd =
+        (BYTE *)((size_t)naiveEnd &
+                 -align); // n.b. given align = 2^n, then x & -align zeros out
+                          // the n-1 least significant bits of x
     ptrdiff_t remaining = actualEnd - aStart;
     if (remaining < 0) {
         clog_ThrowError(a, 1);
@@ -61,7 +67,8 @@ void clog_ArenaFreeAll(clog_ArenaState *a) {
     free(a);
 }
 
-void clog_Defer(clog_Arena *a, void *handle, clog_CloseHandleReturnType type, void *freeFn) {
+void clog_Defer(clog_Arena *a, void *handle, clog_CloseHandleReturnType type,
+                void *freeFn) {
     clog_ArenaState *state = ((clog_ArenaState *)a->State);
 
     if (state->NumHandles >= ARENA_MAXNUM_HANDLES) {

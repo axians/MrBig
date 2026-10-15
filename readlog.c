@@ -4,7 +4,9 @@
 #define EVENT_READ_TIMEOUT (1000)
 #define MAX_PROVIDER_NAME_LENGTH (255)
 #define MAX_EVENT_MESSAGE_SIZE (0x2000) // 8 KB
-#define EVENT_BATCH_SIZE (255)          // Number of events to fetch for each iteration of each log. When "fast" is enabled, do not fetch more events for that log
+#define EVENT_BATCH_SIZE                                                       \
+    (255) // Number of events to fetch for each iteration of each log. When
+          // "fast" is enabled, do not fetch more events for that log
 
 typedef struct Channel {
     WCHAR Name[256];
@@ -14,11 +16,14 @@ struct event *get_event_data(EVT_HANDLE eventHandle) {
 
     struct event *result = NULL;
 
-    // Follows general steps of .Net (C#) class EventLogRecord.cs, from System.Diagnostics.Reader
-    EVT_HANDLE contextHandle = EvtCreateRenderContext(0, NULL, EvtRenderContextSystem);
+    // Follows general steps of .Net (C#) class EventLogRecord.cs, from
+    // System.Diagnostics.Reader
+    EVT_HANDLE contextHandle =
+        EvtCreateRenderContext(0, NULL, EvtRenderContextSystem);
 
     DWORD bufferNeeded, propCount;
-    BOOL status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues, 0, NULL, &bufferNeeded, &propCount);
+    BOOL status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues, 0,
+                            NULL, &bufferNeeded, &propCount);
     DWORD error = GetLastError();
     if (error != ERROR_INSUFFICIENT_BUFFER) {
 
@@ -27,7 +32,9 @@ struct event *get_event_data(EVT_HANDLE eventHandle) {
     }
 
     EVT_VARIANT eventSystemProperties[bufferNeeded / sizeof(EVT_VARIANT)];
-    status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues, bufferNeeded, eventSystemProperties, &bufferNeeded, &propCount);
+    status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues,
+                       bufferNeeded, eventSystemProperties, &bufferNeeded,
+                       &propCount);
     if (!status) {
 
         EvtClose(contextHandle);
@@ -38,18 +45,22 @@ struct event *get_event_data(EVT_HANDLE eventHandle) {
 
     EVT_VARIANT timestampPending = eventSystemProperties[EvtSystemTimeCreated];
     if (timestampPending.Type != EvtVarTypeNull) {
-        time_t created = timestampPending.FileTimeVal / 10000000LL - 11644473600LL;
+        time_t created =
+            timestampPending.FileTimeVal / 10000000LL - 11644473600LL;
         result->gtime = created;
         result->wtime = created;
     }
 
-    EVT_VARIANT providerNamePending = eventSystemProperties[EvtSystemProviderName];
+    EVT_VARIANT providerNamePending =
+        eventSystemProperties[EvtSystemProviderName];
     LPCWSTR providerName = NULL;
     if (providerNamePending.Type != EvtVarTypeNull) {
         providerName = providerNamePending.StringVal;
         char provider_buf[MAX_PROVIDER_NAME_LENGTH];
-        size_t provider_len = wcstombs(provider_buf, providerName, MAX_PROVIDER_NAME_LENGTH);
-        if (provider_len >= MAX_PROVIDER_NAME_LENGTH) provider_buf[MAX_PROVIDER_NAME_LENGTH - 1] = '\0';
+        size_t provider_len =
+            wcstombs(provider_buf, providerName, MAX_PROVIDER_NAME_LENGTH);
+        if (provider_len >= MAX_PROVIDER_NAME_LENGTH)
+            provider_buf[MAX_PROVIDER_NAME_LENGTH - 1] = '\0';
         result->source = big_strdup("get_event_data (source)", provider_buf);
     }
 
@@ -70,13 +81,21 @@ struct event *get_event_data(EVT_HANDLE eventHandle) {
 
     if (providerName != NULL) {
         // TODO: cache publisher handles like in .NET EventLogRecord.
-        EVT_HANDLE pmHandle = EvtOpenPublisherMetadata(NULL, providerName, NULL, 0, 0); // RE providerName. We cannot use result.Provider, since we need wchar_t*
+        EVT_HANDLE pmHandle = EvtOpenPublisherMetadata(
+            NULL, providerName, NULL, 0,
+            0); // RE providerName. We cannot use result.Provider, since we need
+                // wchar_t*
 
-        WCHAR emptyBuffer[1] = {L'\0'}; // Due to: https://github.com/dotnet/runtime/issues/100198"
-        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL, EvtFormatMessageEvent, 0, emptyBuffer, &bufferNeeded);
+        WCHAR emptyBuffer[1] = {
+            L'\0'}; // Due to: https://github.com/dotnet/runtime/issues/100198"
+        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL,
+                                  EvtFormatMessageEvent, 0, emptyBuffer,
+                                  &bufferNeeded);
         error = GetLastError();
 
-        if (!status && // EventLogRecord says: Unresolved inserts are indications that strings COULD be missing, and are not real errors
+        if (!status && // EventLogRecord says: Unresolved inserts are
+                       // indications that strings COULD be missing, and are not
+                       // real errors
             error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
             error != ERROR_EVT_UNRESOLVED_PARAMETER_INSERT &&
             error != ERROR_INSUFFICIENT_BUFFER) {
@@ -86,25 +105,29 @@ struct event *get_event_data(EVT_HANDLE eventHandle) {
         }
 
         WCHAR messageBuffer[bufferNeeded];
-        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL, EvtFormatMessageEvent, bufferNeeded, messageBuffer, &bufferNeeded);
+        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL,
+                                  EvtFormatMessageEvent, bufferNeeded,
+                                  messageBuffer, &bufferNeeded);
         EvtClose(pmHandle);
         error = GetLastError();
-        if (!status &&
-            error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
+        if (!status && error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
             error != ERROR_EVT_UNRESOLVED_PARAMETER_INSERT) {
 
             goto CLEANUP;
         }
 
         char message_buf[MAX_EVENT_MESSAGE_SIZE];
-        size_t message_len = wcstombs(message_buf, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
-        if (message_len >= MAX_EVENT_MESSAGE_SIZE) message_buf[MAX_EVENT_MESSAGE_SIZE - 1] = '\0';
+        size_t message_len =
+            wcstombs(message_buf, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
+        if (message_len >= MAX_EVENT_MESSAGE_SIZE)
+            message_buf[MAX_EVENT_MESSAGE_SIZE - 1] = '\0';
         result->message = big_strdup("get_event_data (message)", message_buf);
     }
 
 CLEANUP:
     EvtClose(contextHandle);
-    if (result->source != NULL && result->message == NULL) result->message = "(No message)";
+    if (result->source != NULL && result->message == NULL)
+        result->message = "(No message)";
     return result;
 }
 
@@ -114,13 +137,17 @@ struct event *read_log(char *log, int maxage, int fast) {
     wlog[127] = L'\0';
 
     WCHAR query[128];
-    snwprintf(query, 128, L"Event/System[TimeCreated[timediff(@SystemTime) <= %d]]", maxage);
-    EVT_HANDLE hLog = EvtQuery(NULL, wlog, query, EvtQueryChannelPath | EvtQueryReverseDirection);
+    snwprintf(query, 128,
+              L"Event/System[TimeCreated[timediff(@SystemTime) <= %d]]",
+              maxage);
+    EVT_HANDLE hLog = EvtQuery(NULL, wlog, query,
+                               EvtQueryChannelPath | EvtQueryReverseDirection);
     if (hLog == NULL) {
         if (GetLastError() == 5) {
             mrlog("read_log: Unable to read %s, Access Denied", log);
         } else {
-            mrlog("read_log: Unable to read %s, error code %lu", log, GetLastError());
+            mrlog("read_log: Unable to read %s, error code %lu", log,
+                  GetLastError());
         }
         return NULL;
     }
@@ -130,7 +157,8 @@ struct event *read_log(char *log, int maxage, int fast) {
     BOOL moreEvents;
     struct event *events = NULL;
     do {
-        moreEvents = EvtNext(hLog, EVENT_BATCH_SIZE, hEvents, EVENT_READ_TIMEOUT, 0, &numHandles);
+        moreEvents = EvtNext(hLog, EVENT_BATCH_SIZE, hEvents,
+                             EVENT_READ_TIMEOUT, 0, &numHandles);
         if (moreEvents) {
             for (int i = 0; i < numHandles; i++) {
                 struct event *e = get_event_data(hEvents[i]);
@@ -140,7 +168,9 @@ struct event *read_log(char *log, int maxage, int fast) {
             }
         } else {
             if (GetLastError() != ERROR_NO_MORE_ITEMS)
-                mrlog("read_log: Unable to iterate events in log %s, error code %lu\n", log, GetLastError());
+                mrlog("read_log: Unable to iterate events in log %s, error "
+                      "code %lu\n",
+                      log, GetLastError());
         }
     } while (!fast && moreEvents);
     EvtClose(hLog);
@@ -167,7 +197,9 @@ void free_log(struct event *e) {
 
 void prettyEvent(struct event e) {
     printf("Event:\n");
-    printf("\tType: %d\n\tSource %s\n\tMessage: %s\n\tgtime: %lu\n\twtime: %lu\n\tRecord: %lu\n\tID: %lu\n", e.type, e.source, e.message, e.gtime, e.wtime, e.record, e.id);
+    printf("\tType: %d\n\tSource %s\n\tMessage: %s\n\tgtime: %lu\n\twtime: "
+           "%lu\n\tRecord: %lu\n\tID: %lu\n",
+           e.type, e.source, e.message, e.gtime, e.wtime, e.record, e.id);
 }
 
 int main(int argv, char **argc) {
@@ -190,32 +222,29 @@ int main(int argv, char **argc) {
     FILETIME ftLastWriteTime;            // last write time
     DWORD retCode;
     if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-                     TEXT("System\\CurrentControlSet\\Services\\EventLog"),
-                     0,
-                     KEY_READ,
-                     &hTestKey) == ERROR_SUCCESS) {
-        retCode = RegQueryInfoKey(
-            hTestKey,              // key handle
-            achClass,              // buffer for class name
-            &cchClassName,         // size of class string
-            NULL,                  // reserved
-            &cSubKeys,             // number of subkeys
-            &cbMaxSubKey,          // longest subkey size
-            &cchMaxClass,          // longest class string
-            &cValues,              // number of values for this key
-            &cchMaxValue,          // longest value name
-            &cbMaxValueData,       // longest value data
-            &cbSecurityDescriptor, // security descriptor
-            &ftLastWriteTime);     // last write time
+                     TEXT("System\\CurrentControlSet\\Services\\EventLog"), 0,
+                     KEY_READ, &hTestKey) == ERROR_SUCCESS) {
+        retCode = RegQueryInfoKey(hTestKey,      // key handle
+                                  achClass,      // buffer for class name
+                                  &cchClassName, // size of class string
+                                  NULL,          // reserved
+                                  &cSubKeys,     // number of subkeys
+                                  &cbMaxSubKey,  // longest subkey size
+                                  &cchMaxClass,  // longest class string
+                                  &cValues,     // number of values for this key
+                                  &cchMaxValue, // longest value name
+                                  &cbMaxValueData,       // longest value data
+                                  &cbSecurityDescriptor, // security descriptor
+                                  &ftLastWriteTime);     // last write time
         for (int i = 0; i < cSubKeys; i++) {
             cbName = MAX_KEY_LENGTH;
-            retCode = RegEnumKeyEx(hTestKey, i,
-                                   achKey, &cbName, NULL,
-                                   NULL, NULL, &ftLastWriteTime);
+            retCode = RegEnumKeyEx(hTestKey, i, achKey, &cbName, NULL, NULL,
+                                   NULL, &ftLastWriteTime);
             if (retCode == ERROR_SUCCESS) {
                 printf("%s\n", achKey);
-                struct event *e = read_log(achKey, t0 - msgage,
-                                           !strcmp(fastmsgs_mode + 9, "on") || fastfile);
+                struct event *e =
+                    read_log(achKey, t0 - msgage,
+                             !strcmp(fastmsgs_mode + 9, "on") || fastfile);
                 while (e != NULL) {
                     prettyEvent(*e);
                     e = e->next;

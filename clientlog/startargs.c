@@ -25,7 +25,8 @@ void clog_startargs(clog_Arena scratch) {
     LPCSTR rawCmd = GetCommandLineA();
 
     clog_ArenaAppend(&scratch, "[startargs]");
-    clog_ArenaAppend(&scratch, "\n%15s: %s", "RawCommandLine", rawCmd ? rawCmd : "(unavailable)");
+    clog_ArenaAppend(&scratch, "\n%15s: %s", "RawCommandLine",
+                     rawCmd ? rawCmd : "(unavailable)");
     clog_ArenaAppend(&scratch, "\n%15s: %d", "ParsedArgc", argc);
 
     if (argv == NULL || argc <= 0) {

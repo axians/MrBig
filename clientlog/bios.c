@@ -4,23 +4,28 @@ void clog_bios(clog_Arena scratch) {
 
     clog_ArenaAppend(&scratch, "[bios]\n");
     HKEY hKey;
-    LSTATUS status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\BIOS", 0, KEY_READ, &hKey);
+    LSTATUS status =
+        RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\BIOS",
+                      0, KEY_READ, &hKey);
     clog_Defer(&scratch, hKey, RETURN_LONG, &RegCloseKey);
 
     if (status != ERROR_SUCCESS) {
-        clog_ArenaAppend(&scratch, "(Unable to open registry key 'HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\BIOS')");
+        clog_ArenaAppend(
+            &scratch,
+            "(Unable to open registry key "
+            "'HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\BIOS')");
         return;
     }
     char regSz[256];
     DWORD type, len;
 
-#define clog_APPEND_BIOS(key)                                                 \
-    len = sizeof(regSz);                                                      \
-    status = RegGetValue(hKey, NULL, key, RRF_RT_REG_SZ, &type, regSz, &len); \
-    clog_ArenaAppend(&scratch, "%21s:\t", key);                               \
-    if (status != ERROR_SUCCESS)                                              \
-        clog_ArenaAppend(&scratch, "(Unable to read)\n");                     \
-    else                                                                      \
+#define clog_APPEND_BIOS(key)                                                  \
+    len = sizeof(regSz);                                                       \
+    status = RegGetValue(hKey, NULL, key, RRF_RT_REG_SZ, &type, regSz, &len);  \
+    clog_ArenaAppend(&scratch, "%21s:\t", key);                                \
+    if (status != ERROR_SUCCESS)                                               \
+        clog_ArenaAppend(&scratch, "(Unable to read)\n");                      \
+    else                                                                       \
         clog_ArenaAppend(&scratch, "%s\n", regSz)
 
     clog_APPEND_BIOS("SystemProductName");

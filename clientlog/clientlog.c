@@ -3,10 +3,11 @@
 static int clog_start_argc = 0;
 static char **clog_start_argv = NULL;
 
-#define RUN(f, args...)                                            \
-    do {                                                           \
-        if (clog_mrlog) clog_mrlog("\nClientlog running " #f "(" #args ")"); \
-        f(args);                                                   \
+#define RUN(f, args...)                                                        \
+    do {                                                                       \
+        if (clog_mrlog)                                                        \
+            clog_mrlog("\nClientlog running " #f "(" #args ")");               \
+        f(args);                                                               \
     } while (0)
 
 void (*clog_mrlog)(char *fmt, ...) = NULL;
@@ -35,7 +36,8 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
     clog_DeferError(&arena, errorcode) {
         LOG_DEBUG("Clientlog error, code %d", errorcode);
         LPSTR errormessage = "\n(Clientlog ran into a problem, error code %d)";
-        sprintf((char *)arenaState->CurrentStart - 1 - strlen(errormessage), errormessage, errorcode);
+        sprintf((char *)arenaState->CurrentStart - 1 - strlen(errormessage),
+                errormessage, errorcode);
 
         LOG_DEBUG("Clientlog error mrsend");
         mrsend(mrmachine, (char *)arenaState->Start);
@@ -55,9 +57,11 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
     clog_ArenaAppend(&arena, "client %s.windows windows\n", mrmachine);
     clog_ArenaAppend(&arena, "\n");
 
-    // Each test must run clog_utils_TrimTrailingNewlines and append a newline after,
-    // to ensure that the output is well-formed and does not have trailing newlines before the next section.
-    // We want to have a single newline between sections, and no trailing newlines at the end of the output.
+    // Each test must run clog_utils_TrimTrailingNewlines and append a newline
+    // after, to ensure that the output is well-formed and does not have
+    // trailing newlines before the next section. We want to have a single
+    // newline between sections, and no trailing newlines at the end of the
+    // output.
 
     RUN(clog_date, arena);
     clog_ArenaAppend(&arena, "\n");
@@ -127,7 +131,6 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
 
     RUN(clog_clientversion, arena);
     clog_ArenaAppend(&arena, "\n");
-
 
     RUN(clog_clock, arena);
     // No newline

@@ -5,8 +5,7 @@
 #include <secext.h>
 #include <winnt.h>
 
-char *GetDomainFromFqdn(const char *fqdn)
-{
+char *GetDomainFromFqdn(const char *fqdn) {
     const char *dot = strchr(fqdn, '.');
     if (!dot)
         return NULL;
@@ -32,7 +31,8 @@ void clog_domain(clog_Arena scratch) {
         wcstombs(domainName, nameBuf, sizeof(domainName) - 1);
     NetApiBufferFree(nameBuf);
 
-    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "PartOfDomain", partOfDomain ? "True" : "False");
+    clog_ArenaAppend(&scratch, "\n%13s:\t%s", "PartOfDomain",
+                     partOfDomain ? "True" : "False");
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "NetBiosDomain", domainName);
 
     CHAR hostName[256] = {0};
@@ -56,7 +56,6 @@ void clog_domain(clog_Arena scratch) {
 
     if (strlen(upnDomain) == 0)
         upnDomain = GetDomainFromFqdn(fqdn);
-
 
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "UPNDomain", upnDomain);
     clog_ArenaAppend(&scratch, "\n%13s:\t%s", "FQDN", fqdn);
