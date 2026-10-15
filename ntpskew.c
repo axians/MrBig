@@ -395,6 +395,8 @@ done:
 /* --- Main test ---------------------------------------------------------- */
 
 void ntp_skew(void) {
+    static int failed_fetches = 0;
+    static const char *last_color = "green";
     char servers[NTP_MAX_SERVERS][NTP_SERVER_LEN];
     double offsets[NTP_MAX_SERVERS];
     int ok[NTP_MAX_SERVERS], nservers, i, worst_idx;
@@ -408,6 +410,8 @@ void ntp_skew(void) {
         mrlog("ntp_skew()");
 
     if (get_option("no_ntp_skew", 0)) {
+        failed_fetches = 0;
+        last_color = "green";
         mrsend(mrmachine, NTP_SKEW_TEST, "clear", "option no_ntp_skew\n");
         return;
     }
@@ -419,11 +423,6 @@ void ntp_skew(void) {
     free_running = is_free_running_clock();
 
     nservers = get_ntp_servers(servers);
-    if (!nservers) {
-        mrsend(mrmachine, NTP_SKEW_TEST, "yellow",
-               "Could not read NTP servers from registry.\n");
-        return;
-    }
 
     worst_abs = -1.0;
     worst_idx = -1;
@@ -436,8 +435,13 @@ void ntp_skew(void) {
     }
 
     if (worst_idx < 0) {
-        int n =
-            snprintf(msg, sizeof msg, "%s\n\nNo NTP servers responded.\n", now);
+        if (failed_fetches < 2)
+            failed_fetches++;
+        int n = snprintf(msg, sizeof msg,
+                         "%s\n\n%s\nConsecutive failed checks: %d%s\n", now,
+                         nservers ? "No NTP servers responded."
+                                  : "Could not read NTP servers from registry.",
+                         failed_fetches, failed_fetches == 2 ? " or more" : "");
         if (n < 0)
             msgpos = 0;
         else if ((size_t)n >= sizeof msg)
@@ -457,10 +461,13 @@ void ntp_skew(void) {
             }
             msgpos += (size_t)n;
         }
-        mrsend(mrmachine, NTP_SKEW_TEST, "yellow", msg);
+        color = failed_fetches >= 2 ? color_worst(last_color, "yellow")
+                                    : last_color;
+        mrsend(mrmachine, NTP_SKEW_TEST, (char *)color, msg);
         return;
     }
 
+    failed_fetches = 0;
     color = color_for(worst_abs, ntpskewyellow, ntpskewred);
 
     const char *worst_name =
@@ -483,11 +490,6 @@ void ntp_skew(void) {
             "NTP peers may be elevated"
             "</span><br>\n");
     }
-    msgpos +=
-        snprintf(msg + msgpos, sizeof msg - msgpos,
-                 "<h2>Currently evaluating!</h2><br>Always &green for now, "
-                 "until we finetune the alert criteria\n");
-
     msgpos +=
         snprintf(msg + msgpos, sizeof msg - msgpos,
                  "<table border=\"1\" cellpadding=\"4\" cellspacing=\"0\">\n"
@@ -521,21 +523,32 @@ void ntp_skew(void) {
     sprintf(iframe_url, "/xymon-cgi/svcstatus.sh?CLIENT=%s&amp;SECTION=clock",
             urlhost);
 
-    /* snprintf(msg + msgpos, sizeof msg - msgpos, */
-    /*          "<h3>Clientlog [clock]</h3>" */
-    /*          "<a href=\"%s\">fallback link to clientlog [clock]</a>" */
-    /*          "<iframe src=\"%s\" width=\"100%%\" height=\"600\" " */
-    /*          "style=\"display:block;background:#fff;color:#000;color-scheme:"
-     */
-    /*          "light;filter:invert(1);border:1px solid #ccc;\"></iframe>" */
-    /*          "<pre>", */
-    /*          iframe_url, iframe_url); */
     msg_add_clog_iframe(msg, msgpos, sizeof msg, "clock", mrmachine);
 
-    // for now always green
-    mrsend(mrmachine, NTP_SKEW_TEST, "green", msg);
-#if 0 // actual send
+    msgpos = strlen(msg);
+    if (msgpos < (int)sizeof msg - 128) {
+        msgpos +=
+            snprintf(msg + msgpos, sizeof msg - msgpos,
+                     "\n<pre style=\"color:#202020;background:#202020\">\n");
+        for (i = 0;
+             i < nservers && msgpos < (int)sizeof msg - NTP_SERVER_LEN - 64;
+             i++) {
+            char peer[NTP_SERVER_LEN];
+            size_t index;
+
+            if (!ok[i])
+                continue;
+            strlcpy(peer, servers[i][0] ? servers[i] : "local", sizeof peer);
+            for (index = 0; peer[index]; index++)
+                if (!isalnum((unsigned char)peer[index]))
+                    peer[index] = '_';
+            msgpos += snprintf(msg + msgpos, sizeof msg - msgpos,
+                               "ntp_%s: %+.7f\n", peer, offsets[i]);
+        }
+        snprintf(msg + msgpos, sizeof msg - msgpos, "</pre>\n");
+    }
+
+    last_color = color;
     mrsend(mrmachine, NTP_SKEW_TEST, (char *)color, msg);
-#endif
 }
 
