@@ -12,7 +12,7 @@
 #include <string.h>
 
 #define PROCESSES_BENCHMARK_SECONDS (1)
-#define NUM_TOPPROCESSES            (20)
+#define NUM_TOPPROCESSES (20)
 
 typedef struct {
     PDH_HQUERY Query;
@@ -54,7 +54,8 @@ static void trim_in_place(char *s) {
         return;
 
     end = start + strlen(start) - 1;
-    while (end > start && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n'))
+    while (end > start &&
+           (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n'))
         *end-- = '\0';
 
     if (s != start)
@@ -103,7 +104,8 @@ static int split_3_csv(char *line, char *out[3]) {
     return n;
 }
 
-static processes_PidPair *processes_BuildPidMap(DWORD *outCount, clog_Arena *a) {
+static processes_PidPair *processes_BuildPidMap(DWORD *outCount,
+                                                clog_Arena *a) {
     *outCount = 0;
 
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -145,7 +147,8 @@ static processes_PidPair *processes_BuildPidMap(DWORD *outCount, clog_Arena *a) 
     return pairs;
 }
 
-static DWORD processes_LookupPPID(DWORD pid, const processes_PidPair *pairs, DWORD count) {
+static DWORD processes_LookupPPID(DWORD pid, const processes_PidPair *pairs,
+                                  DWORD count) {
     if (pairs == NULL || count == 0)
         return 0;
 
@@ -168,15 +171,18 @@ processes_Handle clog_processes_StartQuery(clog_Arena *a) {
     if (state->ErrorCode != ERROR_SUCCESS)
         goto Cleanup;
 
-    state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\ID Process", 0, &idProcess);
+    state->ErrorCode = PdhAddEnglishCounter(
+        queryRes, "\\Process(*)\\ID Process", 0, &idProcess);
     if (state->ErrorCode != ERROR_SUCCESS)
         goto Cleanup;
 
-    state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\Working Set - Private", 0, &workingSet);
+    state->ErrorCode = PdhAddEnglishCounter(
+        queryRes, "\\Process(*)\\Working Set - Private", 0, &workingSet);
     if (state->ErrorCode != ERROR_SUCCESS)
         goto Cleanup;
 
-    state->ErrorCode = PdhAddEnglishCounter(queryRes, "\\Process(*)\\% Processor Time", 0, &processorTime);
+    state->ErrorCode = PdhAddEnglishCounter(
+        queryRes, "\\Process(*)\\% Processor Time", 0, &processorTime);
     if (state->ErrorCode != ERROR_SUCCESS)
         goto Cleanup;
 
@@ -185,7 +191,8 @@ processes_Handle clog_processes_StartQuery(clog_Arena *a) {
         goto Cleanup;
 
     PdhCollectQueryData(queryRes);
-    state->ErrorCode = PdhCollectQueryDataEx(queryRes, PROCESSES_BENCHMARK_SECONDS, eventRes);
+    state->ErrorCode =
+        PdhCollectQueryDataEx(queryRes, PROCESSES_BENCHMARK_SECONDS, eventRes);
     if (state->ErrorCode != ERROR_SUCCESS)
         goto Cleanup;
 
@@ -206,7 +213,8 @@ Cleanup:
 }
 
 CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) {
-    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
+    HANDLE process =
+        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
     clog_Defer(a, process, RETURN_INT, &CloseHandle);
 
     HANDLE processToken = NULL;
@@ -218,7 +226,8 @@ CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) {
     GetTokenInformation(processToken, TokenUser, NULL, 0, &userSIDbufsize);
     BYTE userSID[userSIDbufsize];
 
-    if (!GetTokenInformation(processToken, TokenUser, (TOKEN_USER *)userSID, userSIDbufsize, &userSIDbufsize))
+    if (!GetTokenInformation(processToken, TokenUser, (TOKEN_USER *)userSID,
+                             userSIDbufsize, &userSIDbufsize))
         return "-";
 
     DWORD userBufsize = 256, domainBufsize = 256;
@@ -226,18 +235,20 @@ CHAR *processes_GetProcessUser(DWORD processID, clog_Arena *a) {
     CHAR domain[domainBufsize];
     SID_NAME_USE type;
 
-    LookupAccountSid(NULL, ((TOKEN_USER *)userSID)->User.Sid,
-                     username, &userBufsize, domain, &domainBufsize, &type);
+    LookupAccountSid(NULL, ((TOKEN_USER *)userSID)->User.Sid, username,
+                     &userBufsize, domain, &domainBufsize, &type);
 
     CHAR *result = clog_ArenaAlloc(a, char, userBufsize + domainBufsize + 2);
     sprintf(result, "%s\\%s", domain, username);
     return result;
 }
 
-processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena *a) {
+processes_Table processes_AwaitSummarizeQuery(processes_State *state,
+                                              clog_Arena *a) {
     processes_Table result = {0};
 
-    result.ErrorCode = WaitForSingleObject(state->Event, PROCESSES_BENCHMARK_SECONDS * 1500);
+    result.ErrorCode =
+        WaitForSingleObject(state->Event, PROCESSES_BENCHMARK_SECONDS * 1500);
     CloseHandle(state->Event);
 
     if (result.ErrorCode != WAIT_OBJECT_0) {
@@ -246,7 +257,8 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
     }
 
     DWORD bufsize = 0, numItems;
-    result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems, NULL);
+    result.ErrorCode = PdhGetFormattedCounterArray(
+        state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems, NULL);
     if (result.ErrorCode != PDH_MORE_DATA) {
         PdhCloseQuery(state->Query);
         return result;
@@ -256,27 +268,38 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
     BYTE workingSets[bufsize];
     BYTE processorTimes[bufsize];
 
-    PdhGetFormattedCounterArray(state->IDProcess, PDH_FMT_LONG, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)idProcesses);
-    PdhGetFormattedCounterArray(state->WorkingSet, PDH_FMT_LARGE, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)workingSets);
-    result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)processorTimes);
+    PdhGetFormattedCounterArray(state->IDProcess, PDH_FMT_LONG, &bufsize,
+                                &numItems,
+                                (PDH_FMT_COUNTERVALUE_ITEM *)idProcesses);
+    PdhGetFormattedCounterArray(state->WorkingSet, PDH_FMT_LARGE, &bufsize,
+                                &numItems,
+                                (PDH_FMT_COUNTERVALUE_ITEM *)workingSets);
+    result.ErrorCode = PdhGetFormattedCounterArray(
+        state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems,
+        (PDH_FMT_COUNTERVALUE_ITEM *)processorTimes);
 
     if (result.ErrorCode == ERROR_SUCCESS) {
         result.NumRows = numItems;
-        processes_TableRow *rows = clog_ArenaAlloc(a, processes_TableRow, numItems);
+        processes_TableRow *rows =
+            clog_ArenaAlloc(a, processes_TableRow, numItems);
 
         DWORD pidMapCount = 0;
         processes_PidPair *pidMap = processes_BuildPidMap(&pidMapCount, a);
 
         for (DWORD i = 0; i < numItems; i++) {
-            CHAR *processName = ((PDH_FMT_COUNTERVALUE_ITEM *)processorTimes)[i].szName;
+            CHAR *processName =
+                ((PDH_FMT_COUNTERVALUE_ITEM *)processorTimes)[i].szName;
             size_t processNameLen = strlen(processName);
 
-            CHAR *heapProcessName = clog_ArenaAlloc(a, CHAR, processNameLen + 10);
+            CHAR *heapProcessName =
+                clog_ArenaAlloc(a, CHAR, processNameLen + 10);
             memcpy(heapProcessName, processName, processNameLen + 1);
 
-            LONG processID = ((PDH_FMT_COUNTERVALUE_ITEM *)idProcesses)[i].FmtValue.longValue;
+            LONG processID = ((PDH_FMT_COUNTERVALUE_ITEM *)idProcesses)[i]
+                                 .FmtValue.longValue;
             CHAR *user = processes_GetProcessUser((DWORD)processID, a);
-            DWORD ppid = processes_LookupPPID((DWORD)processID, pidMap, pidMapCount);
+            DWORD ppid =
+                processes_LookupPPID((DWORD)processID, pidMap, pidMapCount);
 
             clog_PopDeferAll(a);
 
@@ -285,8 +308,10 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
                 .PID = processID,
                 .PPID = ppid,
                 .User = user,
-                .CPU = ((PDH_FMT_COUNTERVALUE_ITEM *)processorTimes)[i].FmtValue.doubleValue,
-                .Memory = ((PDH_FMT_COUNTERVALUE_ITEM *)workingSets)[i].FmtValue.largeValue,
+                .CPU = ((PDH_FMT_COUNTERVALUE_ITEM *)processorTimes)[i]
+                           .FmtValue.doubleValue,
+                .Memory = ((PDH_FMT_COUNTERVALUE_ITEM *)workingSets)[i]
+                              .FmtValue.largeValue,
                 .NumServices = 0,
                 .Services = NULL,
             };
@@ -298,7 +323,8 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
     return result;
 }
 
-static void processes_AttachServicesToRows(processes_Table *table, const char *svcBuffer) {
+static void processes_AttachServicesToRows(processes_Table *table,
+                                           const char *svcBuffer) {
     if (table == NULL || table->Rows == NULL || svcBuffer == NULL)
         return;
 
@@ -338,7 +364,8 @@ static void processes_AttachServicesToRows(processes_Table *table, const char *s
                             if (svcToken[0] != '\0') {
                                 if (svcCount >= svcCapacity) {
                                     DWORD newCap = svcCapacity * 2;
-                                    CHAR **newList = realloc(services, newCap * sizeof(*newList));
+                                    CHAR **newList = realloc(
+                                        services, newCap * sizeof(*newList));
                                     if (newList == NULL)
                                         break;
                                     services = newList;
@@ -365,10 +392,12 @@ static void processes_AttachServicesToRows(processes_Table *table, const char *s
 
 void processes_AppendTable(processes_Table t, DWORD maxNumRows, clog_Arena *a) {
     clog_ArenaAppend(a, "\n%-31s\t%6s\t%6s\t%-31s\t%7s\t%12s\t%-31s\n",
-                     "PROCESS", "PID", "PPID", "USER", "CPU", "MEMORY", "SERVICES");
+                     "PROCESS", "PID", "PPID", "USER", "CPU", "MEMORY",
+                     "SERVICES");
 
     if (t.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "(Unable to query processes, error code %#0x.)", t.ErrorCode);
+        clog_ArenaAppend(a, "(Unable to query processes, error code %#0x.)",
+                         t.ErrorCode);
         return;
     }
 
@@ -399,14 +428,11 @@ void processes_AppendTable(processes_Table t, DWORD maxNumRows, clog_Arena *a) {
             }
         }
 
-        clog_ArenaAppend(a, "%-31s\t%6ld\t%6lu\t%-31s\t%5.1lf %%\t%12s\t%-31s\n",
-                         t.Rows[i].Process,
-                         t.Rows[i].PID,
-                         (unsigned long)t.Rows[i].PPID,
-                         t.Rows[i].User,
-                         t.Rows[i].CPU,
-                         memoryBuf,
-                         servicesText[0] != '\0' ? servicesText : "-");
+        clog_ArenaAppend(
+            a, "%-31s\t%6ld\t%6lu\t%-31s\t%5.1lf %%\t%12s\t%-31s\n",
+            t.Rows[i].Process, t.Rows[i].PID, (unsigned long)t.Rows[i].PPID,
+            t.Rows[i].User, t.Rows[i].CPU, memoryBuf,
+            servicesText[0] != '\0' ? servicesText : "-");
     }
 }
 
@@ -439,7 +465,9 @@ INT8 processes__CompareMemory(processes_TableRow *a, processes_TableRow *b) {
     }
 }
 
-void processes__HelperSortBy(processes_TableRow **p, INT8 (*compare)(processes_TableRow *, processes_TableRow *),
+void processes__HelperSortBy(processes_TableRow **p,
+                             INT8 (*compare)(processes_TableRow *,
+                                             processes_TableRow *),
                              DWORD start, DWORD end) {
     if (end - start > 1) {
         processes_TableRow *res[end - start];
@@ -470,14 +498,18 @@ void processes__HelperSortBy(processes_TableRow **p, INT8 (*compare)(processes_T
     }
 }
 
-void processes_SortBy(processes_Table *p, INT8 (*compare)(processes_TableRow *, processes_TableRow *), clog_Arena *a) {
+void processes_SortBy(processes_Table *p,
+                      INT8 (*compare)(processes_TableRow *,
+                                      processes_TableRow *),
+                      clog_Arena *a) {
     processes_TableRow *res[p->NumRows];
     for (DWORD i = 0; i < p->NumRows; i++)
         res[i] = &p->Rows[i];
 
     processes__HelperSortBy(res, compare, 0, p->NumRows);
 
-    processes_TableRow *sorted = clog_ArenaAlloc(a, processes_TableRow, p->NumRows);
+    processes_TableRow *sorted =
+        clog_ArenaAlloc(a, processes_TableRow, p->NumRows);
     for (DWORD i = 0; i < p->NumRows; i++)
         sorted[i] = *res[i];
 
@@ -493,47 +525,57 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 
     char svcBuffer[0x10000];
     char *cmdline = "tasklist /svc /fo csv";
-    DWORD failed = clog_utils_RunCmdSynchronouslyToBuffer(cmdline, svcBuffer, sizeof(svcBuffer));
+    DWORD failed = clog_utils_RunCmdSynchronouslyToBuffer(cmdline, svcBuffer,
+                                                          sizeof(svcBuffer));
     if (!failed && endedQuery.Rows != NULL) {
         processes_AttachServicesToRows(&endedQuery, svcBuffer);
     }
 
     clog_ArenaAppend(a, "[processes]");
-    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n",
-                         startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+    if (startedQuery->ErrorCode != ERROR_SUCCESS ||
+        endedQuery.ErrorCode != ERROR_SUCCESS) {
+        clog_ArenaAppend(
+            a, "\n(Unable to query processes, error code %#010x)\n",
+            startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode
+                                                     : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareName, a);
         processes_AppendTable(endedQuery, endedQuery.NumRows, a);
     }
 
     clog_ArenaAppend(a, "\n[topprocessescpu]");
-    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n",
-                         startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+    if (startedQuery->ErrorCode != ERROR_SUCCESS ||
+        endedQuery.ErrorCode != ERROR_SUCCESS) {
+        clog_ArenaAppend(
+            a, "\n(Unable to query processes, error code %#010x)\n",
+            startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode
+                                                     : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareCPU, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
     }
 
     clog_ArenaAppend(a, "\n[topprocessesmemory]");
-    if (startedQuery->ErrorCode != ERROR_SUCCESS || endedQuery.ErrorCode != ERROR_SUCCESS) {
-        clog_ArenaAppend(a, "\n(Unable to query processes, error code %#010x)\n",
-                         startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode : endedQuery.ErrorCode);
+    if (startedQuery->ErrorCode != ERROR_SUCCESS ||
+        endedQuery.ErrorCode != ERROR_SUCCESS) {
+        clog_ArenaAppend(
+            a, "\n(Unable to query processes, error code %#010x)\n",
+            startedQuery->ErrorCode != ERROR_SUCCESS ? startedQuery->ErrorCode
+                                                     : endedQuery.ErrorCode);
     } else {
         processes_SortBy(&endedQuery, &processes__CompareMemory, a);
         processes_AppendTable(endedQuery, NUM_TOPPROCESSES, a);
     }
-
 
     clog_utils_TrimTrailingNewlines(a, NULL);
     clog_ArenaAppend(a, "\n");
 }
 void _processes(clog_Arena scratch) {
     /* This function should ideally not be used.
-       It is better to separate the calls to processes_StartQuery and processes_EndAppendQuery,
-       since there is a 1 second timer on processes_EndAppendQuery. So we can process other
-       parts of clientlog in the meantime. */
+       It is better to separate the calls to processes_StartQuery and
+       processes_EndAppendQuery, since there is a 1 second timer on
+       processes_EndAppendQuery. So we can process other parts of clientlog in
+       the meantime. */
 
     processes_Handle h = clog_processes_StartQuery(&scratch);
     /* BIIGHANDLE */

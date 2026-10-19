@@ -5,8 +5,7 @@
 
 #if STANDALONE
 #undef LOG_DEBUG
-#define LOG_DEBUG(...) \
-    printf("\n" __VA_ARGS__);
+#define LOG_DEBUG(...) printf("\n" __VA_ARGS__);
 
 #endif
 
@@ -21,7 +20,8 @@ void clog_cpuinfo(clog_Arena scratch) {
 
     {
 
-        clog_ArenaAppend(&scratch, "(Unable to get logical processor information)\n");
+        clog_ArenaAppend(&scratch,
+                         "(Unable to get logical processor information)\n");
         LOG_DEBUG("cpuinfo.c\tError: %lu\n", GetLastError());
         free(buffer);
         return;
@@ -32,8 +32,7 @@ void clog_cpuinfo(clog_Arena scratch) {
     int coreCount = 0;
 
     LOG_DEBUG("cpuinfo.c\tGetting Cores\n");
-    while (offset < len)
-    {
+    while (offset < len) {
 
         PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
 
@@ -51,11 +50,13 @@ void clog_cpuinfo(clog_Arena scratch) {
         (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)malloc(pkgLen);
 
     int packageCount = 0;
-    if (GetLogicalProcessorInformationEx(RelationProcessorPackage, pkgBuffer, &pkgLen)) {
+    if (GetLogicalProcessorInformationEx(RelationProcessorPackage, pkgBuffer,
+                                         &pkgLen)) {
         DWORD pkgOffset = 0;
         while (pkgOffset < pkgLen) {
             PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
-                (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)((BYTE *)pkgBuffer + pkgOffset);
+                (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)((BYTE *)pkgBuffer +
+                                                           pkgOffset);
             packageCount++;
             pkgOffset += info->Size;
         }
@@ -70,12 +71,12 @@ void clog_cpuinfo(clog_Arena scratch) {
         total += GetActiveProcessorCount(i);
     }
 
-
     free(buffer);
     clog_ArenaAppend(&scratch, "[cpuinfo]\n");
     clog_ArenaAppend(&scratch, "     CPU Sockets: %d\n", packageCount);
     if (packageCount > 0) {
-        clog_ArenaAppend(&scratch, "Cores per socket: %d\n", coreCount / packageCount);
+        clog_ArenaAppend(&scratch, "Cores per socket: %d\n",
+                         coreCount / packageCount);
     } else {
         clog_ArenaAppend(&scratch, "Cores per socket: N/A\n");
     }

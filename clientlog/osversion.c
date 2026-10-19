@@ -61,16 +61,20 @@ const osversion_WindowsVersion WindowsServerVersions[] = {
 
 void clog_osversion(clog_Arena scratch) {
     HKEY hKey;
-    LONG productStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &hKey);
+    LONG productStatus = RegOpenKeyEx(
+        HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion",
+        0, KEY_READ, &hKey);
     CHAR productName[64];
     DWORD typeProduct;
     DWORD lenProduct = 64;
     DWORD ubr = 0;
     if (productStatus == ERROR_SUCCESS) {
-        productStatus = RegGetValue(hKey, NULL, "productName", RRF_RT_REG_SZ, &typeProduct, productName, &lenProduct);
+        productStatus = RegGetValue(hKey, NULL, "productName", RRF_RT_REG_SZ,
+                                    &typeProduct, productName, &lenProduct);
         DWORD typeUbr;
         DWORD lenUbr = sizeof(DWORD);
-        RegGetValue(hKey, NULL, "UBR", RRF_RT_REG_DWORD, &typeUbr, &ubr, &lenUbr);
+        RegGetValue(hKey, NULL, "UBR", RRF_RT_REG_DWORD, &typeUbr, &ubr,
+                    &lenUbr);
     }
     RegCloseKey(hKey);
 
@@ -98,14 +102,13 @@ void clog_osversion(clog_Arena scratch) {
         return;
     }
 
-    // START Remove this if it becomes out of date. It is only used to get the version member of osversion_WindowsVersion
+    // START Remove this if it becomes out of date. It is only used to get the
+    // version member of osversion_WindowsVersion
     BOOL isPersonalComputer = osVersionInfo.wProductType == VER_NT_WORKSTATION;
-    const osversion_WindowsVersion *versionList = isPersonalComputer
-                                                   ? WindowsPersonalVersions
-                                                   : WindowsServerVersions;
-    size_t versionListSize = isPersonalComputer
-                                 ? sizeof WindowsPersonalVersions
-                                 : sizeof WindowsServerVersions;
+    const osversion_WindowsVersion *versionList =
+        isPersonalComputer ? WindowsPersonalVersions : WindowsServerVersions;
+    size_t versionListSize = isPersonalComputer ? sizeof WindowsPersonalVersions
+                                                : sizeof WindowsServerVersions;
 
     size_t nVersions = versionListSize / sizeof(osversion_WindowsVersion);
 
@@ -135,13 +138,18 @@ void clog_osversion(clog_Arena scratch) {
     }
     if (osVersionInfo.szCSDVersion[0] != '\0') {
         CHAR servicePack[32];
-        size_t servicePackLen = wcstombs(servicePack, osVersionInfo.szCSDVersion, 32);
-        if (servicePackLen > 31) servicePack[31] = '\0';
-        snprintf(&osName[osNameWritten], 64 - osNameWritten, " %s", servicePack);
+        size_t servicePackLen =
+            wcstombs(servicePack, osVersionInfo.szCSDVersion, 32);
+        if (servicePackLen > 31)
+            servicePack[31] = '\0';
+        snprintf(&osName[osNameWritten], 64 - osNameWritten, " %s",
+                 servicePack);
     }
 
     CHAR osVersion[64];
-    snprintf(osVersion, 64, "version %lu.%lu.%lu.%lu (%s)", osVersionInfo.dwMajorVersion, osVersionInfo.dwMinorVersion, osVersionInfo.dwBuildNumber, ubr, win.version);
+    snprintf(osVersion, 64, "version %lu.%lu.%lu.%lu (%s)",
+             osVersionInfo.dwMajorVersion, osVersionInfo.dwMinorVersion,
+             osVersionInfo.dwBuildNumber, ubr, win.version);
 
     clog_ArenaAppend(&scratch, "\n%s, %s", osName, osVersion);
 
@@ -150,27 +158,39 @@ void clog_osversion(clog_Arena scratch) {
     CHAR installedSuites[suitesBufSize];
     int suitesWritten = 0;
     if (VER_SUITE_BACKOFFICE & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Microsoft BackOffice\n");
-    if (VER_SUITE_BLADE & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Server 2003, Web Edition\n");
-    if (VER_SUITE_COMPUTE_SERVER & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Server 2003, Compute Cluster Edition\n");
-    if (VER_SUITE_DATACENTER & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Server Datacenter\n");
-    if (VER_SUITE_ENTERPRISE & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Server Enterprise\n");
-    if (VER_SUITE_EMBEDDEDNT & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows XP Embedded\n");
-    if (VER_SUITE_PERSONAL & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Vista/XP Home\n");
-    if (VER_SUITE_SINGLEUSERTS & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Remote desktop\n");
-    if (VER_SUITE_STORAGE_SERVER & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Storage Server 2003\n");
-    if (VER_SUITE_WH_SERVER & osVersionInfo.wSuiteMask)
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Windows Home Server\n");
-    if ((VER_SUITE_SMALLBUSINESS & osVersionInfo.wSuiteMask) && (VER_SUITE_SMALLBUSINESS_RESTRICTED & osVersionInfo.wSuiteMask))
-        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize - suitesWritten), "Microsoft Small Business Server\n");
+        suitesWritten += snprintf(&installedSuites[suitesWritten], max(0,
+    suitesBufSize - suitesWritten), "Microsoft BackOffice\n"); if
+    (VER_SUITE_BLADE & osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Server 2003, Web Edition\n"); if
+    (VER_SUITE_COMPUTE_SERVER & osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Server 2003, Compute Cluster Edition\n"); if
+    (VER_SUITE_DATACENTER & osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Server Datacenter\n"); if (VER_SUITE_ENTERPRISE &
+    osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Server Enterprise\n"); if (VER_SUITE_EMBEDDEDNT &
+    osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows XP Embedded\n"); if (VER_SUITE_PERSONAL &
+    osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Vista/XP Home\n"); if (VER_SUITE_SINGLEUSERTS &
+    osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Remote desktop\n"); if (VER_SUITE_STORAGE_SERVER &
+    osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Storage Server 2003\n"); if (VER_SUITE_WH_SERVER &
+    osVersionInfo.wSuiteMask) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Windows Home Server\n"); if ((VER_SUITE_SMALLBUSINESS &
+    osVersionInfo.wSuiteMask) && (VER_SUITE_SMALLBUSINESS_RESTRICTED &
+    osVersionInfo.wSuiteMask)) suitesWritten +=
+    snprintf(&installedSuites[suitesWritten], max(0, suitesBufSize -
+    suitesWritten), "Microsoft Small Business Server\n");
 
     if (suitesWritten > 0) {
         clog_ArenaAppend(&scratch, "\nInstalled suites:\n%s", installedSuites);

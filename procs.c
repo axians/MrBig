@@ -156,8 +156,9 @@ void procs(void) {
             // if any process is non-green, report goes red
             rep->color = "red";
         }
-        snprcat(rep->str, sizeof rep->str, "&%s %s - %d running (min %d, max %d)\n", mycolor, pc->name, m, pc->min,
-                pc->max);
+        snprcat(rep->str, sizeof rep->str,
+                "&%s %s - %d running (min %d, max %d)\n", mycolor, pc->name, m,
+                pc->min, pc->max);
         //		strlcat(q, p, sizeof q);
         big_free("procs (pc->name)", pc->name);
         big_free("procs (pc->machine)", pc->machine);
@@ -181,7 +182,8 @@ void procs(void) {
     while (rep) {
         struct report *prev;
         b[0] = '\0';
-        snprcat(b, n, "%s\n\n%s\nTotal %d processes running (%d unique)\n", now, rep->str, running, unique);
+        snprcat(b, n, "%s\n\n%s\nTotal %d processes running (%d unique)\n", now,
+                rep->str, running, unique);
         mrsend(rep->machine, "procs", rep->color, b);
         prev = rep;
         rep = rep->next;
@@ -192,13 +194,15 @@ void procs(void) {
 
 void PrintProcessNameAndID(DWORD processID) {
     TCHAR szProcessName[MAX_PATH] = TEXT("<unknown>");
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
+    HANDLE hProcess =
+        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processID);
     if (NULL != hProcess) {
         DWORD size = MAX_PATH;
         if (QueryFullProcessImageName(hProcess, 0, szProcessName, &size)) {
             TCHAR *lastSep = _tcsrchr(szProcessName, TEXT('\\'));
             if (lastSep)
-                memmove(szProcessName, lastSep + 1, (_tcslen(lastSep + 1) + 1) * sizeof(TCHAR));
+                memmove(szProcessName, lastSep + 1,
+                        (_tcslen(lastSep + 1) + 1) * sizeof(TCHAR));
         }
         CloseHandle(hProcess);
     }

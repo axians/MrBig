@@ -14,11 +14,10 @@
 
 #define LOG_DEBUG(fmt, ...)                                                    \
     do {                                                                       \
-        printf(fmt "\n", ##__VA_ARGS__);                                  \
+        printf(fmt "\n", ##__VA_ARGS__);                                       \
     } while (0)
 
 #endif
-
 
 typedef struct TreeSet {
     struct TreeSet *Left;
@@ -112,9 +111,9 @@ static int kbs_compareByDateThenKB(const void *lhs, const void *rhs) {
     if (dateCmp != 0)
         return dateCmp;
 
-    return (left->Value < right->Value)
-               ? -1
-               : (left->Value > right->Value) ? 1 : 0;
+    return (left->Value < right->Value)   ? -1
+           : (left->Value > right->Value) ? 1
+                                          : 0;
 }
 
 static void kbs_appendKBsSorted(clog_Arena *a, TreeSet *root) {
@@ -137,18 +136,19 @@ static void kbs_appendKBsSorted(clog_Arena *a, TreeSet *root) {
 
 int kbs_getDateElementOrder() {
     wchar_t formatBuffer[10] = {0};
-    
+
     // Retrieve the short date format ordering identifier
     // 0 = Month-Day-Year (e.g., US)
     // 1 = Day-Month-Year (e.g., Europe)
     // 2 = Year-Month-Day (e.g., ISO / East Asia)
-    if (GetLocaleInfoW(LOCALE_USER_DEFAULT, LOCALE_IDATE, formatBuffer, 10) > 0) {
+    if (GetLocaleInfoW(LOCALE_USER_DEFAULT, LOCALE_IDATE, formatBuffer, 10) >
+        0) {
         return _wtoi(formatBuffer);
     }
     return -1; // Unknown
 }
 
-void kbs_customParse(char* dest, BSTR localizedDateStr) {
+void kbs_customParse(char *dest, BSTR localizedDateStr) {
     // Fallback default value if parsing fails completely
     snprintf(dest, 11, "1970-01-01");
 
@@ -158,59 +158,65 @@ void kbs_customParse(char* dest, BSTR localizedDateStr) {
 
     int order = kbs_getDateElementOrder();
     int v1 = 0, v2 = 0, v3 = 0;
-    
-    // L"%d%*[^0-9]%d%*[^0-9]%d" extracts 3 numbers and safely throws away 
+
+    // L"%d%*[^0-9]%d%*[^0-9]%d" extracts 3 numbers and safely throws away
     // any separators (slashes, dots, dashes, or spaces) automatically.
-    int parsedItems = swscanf(localizedDateStr, L"%d%*[^0-9]%d%*[^0-9]%d", &v1, &v2, &v3);
-    
+    int parsedItems =
+        swscanf(localizedDateStr, L"%d%*[^0-9]%d%*[^0-9]%d", &v1, &v2, &v3);
+
     // We must successfully extract exactly 3 distinct numeric segments
     if (parsedItems != 3) {
-        return; 
+        return;
     }
 
     int year = 0, month = 0, day = 0;
 
-    switch(order) {
-        case 0: // MM/DD/YYYY
-            month = v1; day = v2; year = v3;
-            break;
-        case 1: // DD/MM/YYYY
-            day = v1; month = v2; year = v3;
-            break;
-        case 2: // YYYY/MM/DD
-            year = v1; month = v2; day = v3;
-            break;
-        default:
-            return; // Unknown system locale format layout
+    switch (order) {
+    case 0: // MM/DD/YYYY
+        month = v1;
+        day = v2;
+        year = v3;
+        break;
+    case 1: // DD/MM/YYYY
+        day = v1;
+        month = v2;
+        year = v3;
+        break;
+    case 2: // YYYY/MM/DD
+        year = v1;
+        month = v2;
+        day = v3;
+        break;
+    default:
+        return; // Unknown system locale format layout
     }
 
     // this means that the month and day are switched
-    if (month > 12 && day <= 12)
-    {
+    if (month > 12 && day <= 12) {
         int temp = month;
         month = day;
         day = temp;
     }
     // Quick structural sanity check to protect against corrupted string data
-    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1971 || year > 9999) {
+    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1971 ||
+        year > 9999) {
         return;
     }
-    
 
-    // Safely write the standardized, region-neutral string to your 11-byte char buffer
-    // Output format: YYYY-MM-DD (e.g., "2026-06-30")
+    // Safely write the standardized, region-neutral string to your 11-byte char
+    // buffer Output format: YYYY-MM-DD (e.g., "2026-06-30")
     snprintf(dest, 11, "%04d-%02d-%02d", year, month, day);
 }
 
-static void kbs_scanRegistryUninstall(clog_Arena *scratch, TreeSet **kbs, const wchar_t *path, REGSAM samDesired) {
+static void kbs_scanRegistryUninstall(clog_Arena *scratch, TreeSet **kbs,
+                                      const wchar_t *path, REGSAM samDesired) {
     HKEY hUninstall;
-    LONG result = RegOpenKeyExW(
-        HKEY_LOCAL_MACHINE,
-        path,
-        0, KEY_READ | samDesired, &hUninstall);
+    LONG result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, 0,
+                                KEY_READ | samDesired, &hUninstall);
 
     if (result != ERROR_SUCCESS) {
-        LOG_DEBUG("\tkbs.c: Could not open Uninstall registry key '%ls' (sam=0x%lx), error %ld.",
+        LOG_DEBUG("\tkbs.c: Could not open Uninstall registry key '%ls' "
+                  "(sam=0x%lx), error %ld.",
                   path, (unsigned long)samDesired, (long)result);
         return;
     }
@@ -236,11 +242,14 @@ static void kbs_scanRegistryUninstall(clog_Arena *scratch, TreeSet **kbs, const 
         DWORD kb = kbs_ExtractKBNumber(subkeyName);
         if (kb == 0) {
             WCHAR displayName[512] = {0};
-            DWORD displayNameLen = sizeof(displayName) - sizeof(WCHAR); // reserve room for null
+            DWORD displayNameLen =
+                sizeof(displayName) - sizeof(WCHAR); // reserve room for null
             DWORD displayNameType = 0;
             if (RegQueryValueExW(hEntry, L"DisplayName", NULL, &displayNameType,
-                                 (LPBYTE)displayName, &displayNameLen) == ERROR_SUCCESS &&
-                (displayNameType == REG_SZ || displayNameType == REG_EXPAND_SZ)) {
+                                 (LPBYTE)displayName,
+                                 &displayNameLen) == ERROR_SUCCESS &&
+                (displayNameType == REG_SZ ||
+                 displayNameType == REG_EXPAND_SZ)) {
                 // Guarantee null termination in case the stored value lacks it
                 displayName[sizeof(displayName) / sizeof(WCHAR) - 1] = L'\0';
                 kb = kbs_ExtractKBNumber(displayName);
@@ -252,23 +261,28 @@ static void kbs_scanRegistryUninstall(clog_Arena *scratch, TreeSet **kbs, const 
             snprintf(dateStr, 11, "1970-01-01");
 
             WCHAR installDate[16] = {0};
-            DWORD installDateLen = sizeof(installDate) - sizeof(WCHAR); // reserve room for null
+            DWORD installDateLen =
+                sizeof(installDate) - sizeof(WCHAR); // reserve room for null
             DWORD installDateType = 0;
             if (RegQueryValueExW(hEntry, L"InstallDate", NULL, &installDateType,
-                                 (LPBYTE)installDate, &installDateLen) == ERROR_SUCCESS &&
-                (installDateType == REG_SZ || installDateType == REG_EXPAND_SZ)) {
+                                 (LPBYTE)installDate,
+                                 &installDateLen) == ERROR_SUCCESS &&
+                (installDateType == REG_SZ ||
+                 installDateType == REG_EXPAND_SZ)) {
                 // Guarantee null termination in case the stored value lacks it
                 installDate[sizeof(installDate) / sizeof(WCHAR) - 1] = L'\0';
                 // InstallDate is stored as YYYYMMDD
                 int year = 0, month = 0, day = 0;
-                if (swscanf(installDate, L"%4d%2d%2d", &year, &month, &day) == 3 &&
+                if (swscanf(installDate, L"%4d%2d%2d", &year, &month, &day) ==
+                        3 &&
                     month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
                     year >= 1971 && year <= 9999) {
                     snprintf(dateStr, 11, "%04d-%02d-%02d", year, month, day);
                 }
             }
 
-            LOG_DEBUG("\t\tkbs.c: Registry found KB%lu installed %s.", kb, dateStr);
+            LOG_DEBUG("\t\tkbs.c: Registry found KB%lu installed %s.", kb,
+                      dateStr);
             kbs_UpsertKB(kbs, scratch, kb, dateStr);
         }
 
@@ -369,7 +383,6 @@ void clog_kbs(clog_Arena scratch) {
             kbs_UpsertKB(&kbs, &scratch, kb, dateStr);
         }
 
-
         LOG_DEBUG("\t\tkbs.c: Releasing WMI object.");
         VariantClear(&value);
         VariantClear(&dateInstalled);
@@ -383,12 +396,16 @@ Cleanup:
 
     LOG_DEBUG("\tkbs.c: Cleanup complete.");
 
-    LOG_DEBUG("\tkbs.c: Scanning registry Uninstall key for KBs (64-bit view).");
-    kbs_scanRegistryUninstall(&scratch, &kbs,
+    LOG_DEBUG(
+        "\tkbs.c: Scanning registry Uninstall key for KBs (64-bit view).");
+    kbs_scanRegistryUninstall(
+        &scratch, &kbs,
         L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
         KEY_WOW64_64KEY);
-    LOG_DEBUG("\tkbs.c: Scanning registry Uninstall key for KBs (32-bit view).");
-    kbs_scanRegistryUninstall(&scratch, &kbs,
+    LOG_DEBUG(
+        "\tkbs.c: Scanning registry Uninstall key for KBs (32-bit view).");
+    kbs_scanRegistryUninstall(
+        &scratch, &kbs,
         L"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
         KEY_WOW64_64KEY);
 
@@ -401,7 +418,6 @@ Cleanup:
     }
     clog_utils_TrimTrailingNewlines(&scratch, NULL);
     clog_ArenaAppend(&scratch, "\n");
-
 }
 
 #ifdef STANDALONE

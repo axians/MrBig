@@ -10,8 +10,9 @@
 #define MAX_EVENTLOG_ROW_SIZE (512)
 #define EVENTLOG_CONFIG_MAX_LINE (1024)
 
-// Due to string literal concatenation in EvtQuery below, you must treat this as a string (not a number) when modifying
-// For example, a writing 3600 * 1000 instead of 3600000 will not work
+// Due to string literal concatenation in EvtQuery below, you must treat this as
+// a string (not a number) when modifying For example, a writing 3600 * 1000
+// instead of 3600000 will not work
 #define MAX_EVENT_AGE_MS 3600000
 
 typedef struct {
@@ -50,10 +51,10 @@ static BOOL eventlog_BuildCfgCachePath(const CHAR *systemRoot,
     }
 
     rootLen = strlen(systemRoot);
-    if (rootLen > 0 && (systemRoot[rootLen - 1] == '\\' ||
-                        systemRoot[rootLen - 1] == '/')) {
-        ret = snprintf(path, pathSize, "%s%s\\cfg.cache", systemRoot,
-                       systemDir);
+    if (rootLen > 0 &&
+        (systemRoot[rootLen - 1] == '\\' || systemRoot[rootLen - 1] == '/')) {
+        ret =
+            snprintf(path, pathSize, "%s%s\\cfg.cache", systemRoot, systemDir);
     } else {
         ret = snprintf(path, pathSize, "%s\\%s\\cfg.cache", systemRoot,
                        systemDir);
@@ -92,8 +93,7 @@ static BOOL eventlog_BuildLocalConfigPath(CHAR *path, size_t pathSize) {
     return TRUE;
 }
 
-static BOOL eventlog_DisableChannel(LPCSTR channelName,
-                                    BOOL *channelEnabled) {
+static BOOL eventlog_DisableChannel(LPCSTR channelName, BOOL *channelEnabled) {
     if (channelName == NULL || channelEnabled == NULL)
         return FALSE;
 
@@ -188,22 +188,28 @@ LPSTR eventlog_PrettyEvent(eventlog_Event *e, CHAR *out) {
     FileTimeToSystemTime((FILETIME *)&e->Timestamp, &t);
 
     snprintf(out, MAX_EVENTLOG_ROW_SIZE, "%-23s\t%6d \t%-7s\t %-30s\t%s",
-             clog_utils_PrettySystemtime(&t, clog_utils_TIMESTAMP_DATETIME, eventTimestamp, sizeof(eventTimestamp)),
-             e->EventID,
-             eventlog_PrettyEventLevel(e->Level),
-             clog_utils_ClampString(e->Provider, providerBuffer, sizeof(providerBuffer)),
-             clog_utils_ClampString(e->Message, eventMessageClamped, sizeof(eventMessageClamped)));
+             clog_utils_PrettySystemtime(&t, clog_utils_TIMESTAMP_DATETIME,
+                                         eventTimestamp,
+                                         sizeof(eventTimestamp)),
+             e->EventID, eventlog_PrettyEventLevel(e->Level),
+             clog_utils_ClampString(e->Provider, providerBuffer,
+                                    sizeof(providerBuffer)),
+             clog_utils_ClampString(e->Message, eventMessageClamped,
+                                    sizeof(eventMessageClamped)));
     return out;
 }
 
 eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
     eventlog_Event result = {0};
 
-    // Follows general steps of .Net (C#) class EventLogRecord.cs, from System.Diagnostics.Reader
-    EVT_HANDLE contextHandle = EvtCreateRenderContext(0, NULL, EvtRenderContextSystem);
+    // Follows general steps of .Net (C#) class EventLogRecord.cs, from
+    // System.Diagnostics.Reader
+    EVT_HANDLE contextHandle =
+        EvtCreateRenderContext(0, NULL, EvtRenderContextSystem);
 
     DWORD bufferNeeded, propCount;
-    BOOL status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues, 0, NULL, &bufferNeeded, &propCount);
+    BOOL status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues, 0,
+                            NULL, &bufferNeeded, &propCount);
     DWORD error = GetLastError();
     if (error != ERROR_INSUFFICIENT_BUFFER) {
         EvtClose(contextHandle);
@@ -211,7 +217,9 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
     }
 
     EVT_VARIANT eventSystemProperties[bufferNeeded / sizeof(EVT_VARIANT)];
-    status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues, bufferNeeded, eventSystemProperties, &bufferNeeded, &propCount);
+    status = EvtRender(contextHandle, eventHandle, EvtRenderEventValues,
+                       bufferNeeded, eventSystemProperties, &bufferNeeded,
+                       &propCount);
     if (!status) {
         EvtClose(contextHandle);
         return result;
@@ -222,12 +230,15 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
         result.Timestamp = timestampPending.FileTimeVal;
     }
 
-    EVT_VARIANT providerNamePending = eventSystemProperties[EvtSystemProviderName];
+    EVT_VARIANT providerNamePending =
+        eventSystemProperties[EvtSystemProviderName];
     LPCWSTR providerName = NULL;
     if (providerNamePending.Type != EvtVarTypeNull) {
         providerName = providerNamePending.StringVal;
-        size_t providerNameWritten = wcstombs(result.Provider, providerName, MAX_PROVIDER_NAME_LENGTH);
-        if (providerNameWritten >= MAX_PROVIDER_NAME_LENGTH) result.Provider[MAX_PROVIDER_NAME_LENGTH - 1] = '\0';
+        size_t providerNameWritten =
+            wcstombs(result.Provider, providerName, MAX_PROVIDER_NAME_LENGTH);
+        if (providerNameWritten >= MAX_PROVIDER_NAME_LENGTH)
+            result.Provider[MAX_PROVIDER_NAME_LENGTH - 1] = '\0';
     }
 
     EVT_VARIANT eventIdPending = eventSystemProperties[EvtSystemEventID];
@@ -242,12 +253,20 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
 
     if (providerName != NULL) {
         // TODO: cache publisher handles like in .NET EventLogRecord.
-        EVT_HANDLE pmHandle = EvtOpenPublisherMetadata(NULL, providerName, NULL, 0, 0); // RE providerName. We cannot use result.Provider, since we need wchar_t*
+        EVT_HANDLE pmHandle = EvtOpenPublisherMetadata(
+            NULL, providerName, NULL, 0,
+            0); // RE providerName. We cannot use result.Provider, since we need
+                // wchar_t*
 
-        WCHAR emptyBuffer[1] = {L'\0'}; // Due to: https://github.com/dotnet/runtime/issues/100198"
-        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL, EvtFormatMessageEvent, 0, emptyBuffer, &bufferNeeded);
+        WCHAR emptyBuffer[1] = {
+            L'\0'}; // Due to: https://github.com/dotnet/runtime/issues/100198"
+        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL,
+                                  EvtFormatMessageEvent, 0, emptyBuffer,
+                                  &bufferNeeded);
         error = GetLastError();
-        if (!status && // EventLogRecord says: Unresolved inserts are indications that strings COULD be missing, and are not real errors
+        if (!status && // EventLogRecord says: Unresolved inserts are
+                       // indications that strings COULD be missing, and are not
+                       // real errors
             error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
             error != ERROR_EVT_UNRESOLVED_PARAMETER_INSERT &&
             error != ERROR_INSUFFICIENT_BUFFER) {
@@ -257,17 +276,20 @@ eventlog_Event eventlog_GetEventData(EVT_HANDLE eventHandle) {
         }
 
         WCHAR messageBuffer[bufferNeeded];
-        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL, EvtFormatMessageEvent, bufferNeeded, messageBuffer, &bufferNeeded);
+        status = EvtFormatMessage(pmHandle, eventHandle, 0, 0, NULL,
+                                  EvtFormatMessageEvent, bufferNeeded,
+                                  messageBuffer, &bufferNeeded);
         error = GetLastError();
         EvtClose(pmHandle);
-        if (!status &&
-            error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
+        if (!status && error != ERROR_EVT_UNRESOLVED_VALUE_INSERT &&
             error != ERROR_EVT_UNRESOLVED_PARAMETER_INSERT) {
             EvtClose(contextHandle);
             return result;
         }
-        size_t messageWritten = wcstombs(result.Message, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
-        if (messageWritten >= MAX_EVENT_MESSAGE_SIZE) result.Message[MAX_EVENT_MESSAGE_SIZE - 1] = '\0';
+        size_t messageWritten =
+            wcstombs(result.Message, messageBuffer, MAX_EVENT_MESSAGE_SIZE);
+        if (messageWritten >= MAX_EVENT_MESSAGE_SIZE)
+            result.Message[MAX_EVENT_MESSAGE_SIZE - 1] = '\0';
     }
 
     EvtClose(contextHandle);
@@ -287,8 +309,10 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
         CHAR channelName[32];
         wcstombs(channelName, CHANNELS[channelIx].ChannelName, 32);
         if (!channelEnabled[channelIx]) {
-            clog_ArenaAppend(&scratch, "[eventlog_%s]", CharLowerA(channelName));
-            clog_ArenaAppend(&scratch, "\n(Channel monitoring was disabled by config.)");
+            clog_ArenaAppend(&scratch, "[eventlog_%s]",
+                             CharLowerA(channelName));
+            clog_ArenaAppend(&scratch,
+                             "\n(Channel monitoring was disabled by config.)");
             clog_ArenaAppend(&scratch, "\n");
             clog_ArenaAppend(&scratch, "\n");
             continue;
@@ -296,23 +320,32 @@ void clog_eventlog(DWORD maxNumEvents, clog_Arena scratch) {
 
         clog_ArenaAppend(&scratch, "[eventlog_%s]", CharLowerA(channelName));
 
-        EVT_HANDLE hLog = EvtQuery(NULL, CHANNELS[channelIx].ChannelName, L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) <= " STR(MAX_EVENT_AGE_MS) "]]", EvtQueryChannelPath | EvtQueryReverseDirection);
+        EVT_HANDLE hLog = EvtQuery(
+            NULL, CHANNELS[channelIx].ChannelName,
+            L"Event/System[Level<4 and TimeCreated[timediff(@SystemTime) "
+            L"<= " STR(MAX_EVENT_AGE_MS) "]]",
+            EvtQueryChannelPath | EvtQueryReverseDirection);
         clog_Defer(&scratch, hLog, RETURN_INT, &EvtClose);
 
         EVT_HANDLE event[maxNumEvents];
         DWORD nEvents = 0;
         EvtNext(hLog, maxNumEvents, event, INFINITE, 0, &nEvents);
         if (nEvents > 0) {
-            clog_ArenaAppend(&scratch, "\n%-23s\t%6s \t%-7s\t %-30s\t%s", "Timestamp", "Id", "Level", "Source", "Message");
+            clog_ArenaAppend(&scratch, "\n%-23s\t%6s \t%-7s\t %-30s\t%s",
+                             "Timestamp", "Id", "Level", "Source", "Message");
 
             for (DWORD i = 0; i < nEvents; i++) {
                 eventlog_Event e = eventlog_GetEventData(event[i]);
                 clog_Defer(&scratch, event[i], RETURN_INT, &EvtClose);
-                clog_ArenaAppend(&scratch, "\n%s", eventlog_PrettyEvent(&e, eventBuffer));
+                clog_ArenaAppend(&scratch, "\n%s",
+                                 eventlog_PrettyEvent(&e, eventBuffer));
                 clog_PopDefer(&scratch);
             }
         } else {
-            clog_ArenaAppend(&scratch, "\n(No warnings or errors found within the last %dh.)", MAX_EVENT_AGE_MS / 3600000);
+            clog_ArenaAppend(
+                &scratch,
+                "\n(No warnings or errors found within the last %dh.)",
+                MAX_EVENT_AGE_MS / 3600000);
         }
         clog_ArenaAppend(&scratch, "\n");
         clog_ArenaAppend(&scratch, "\n");

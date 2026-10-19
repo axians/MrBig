@@ -309,10 +309,10 @@ static BOOL registry_BuildCfgCachePath(const CHAR *systemRoot,
     }
 
     rootLen = strlen(systemRoot);
-    if (rootLen > 0 && (systemRoot[rootLen - 1] == '\\' ||
-                        systemRoot[rootLen - 1] == '/')) {
-        ret = snprintf(path, pathSize, "%s%s\\cfg.cache", systemRoot,
-                       systemDir);
+    if (rootLen > 0 &&
+        (systemRoot[rootLen - 1] == '\\' || systemRoot[rootLen - 1] == '/')) {
+        ret =
+            snprintf(path, pathSize, "%s%s\\cfg.cache", systemRoot, systemDir);
     } else {
         ret = snprintf(path, pathSize, "%s\\%s\\cfg.cache", systemRoot,
                        systemDir);
@@ -324,8 +324,7 @@ static BOOL registry_BuildCfgCachePath(const CHAR *systemRoot,
 static VOID registry_GetConfiguredItems(registry_ConfigItem *items,
                                         size_t *numItems,
                                         const char *configuredCachePath,
-                                        CHAR *sourceOut,
-                                        size_t sourceOutSize) {
+                                        CHAR *sourceOut, size_t sourceOutSize) {
     const CHAR *systemRoot = getenv("SystemRoot");
     CHAR cfgCachePath[REGISTRY_MAX_LINE];
 

@@ -3,7 +3,9 @@
 #define MAX_APPLICATION_NAME (64)
 #define MAX_APPLICATION_VERSION (64)
 #define MAX_APPLICATION_PUBLISHER (64)
-#define MAX_APPLICATIONS_ROW_SIZE (16 + MAX_APPLICATION_NAME + MAX_APPLICATION_VERSION + MAX_APPLICATION_PUBLISHER)
+#define MAX_APPLICATIONS_ROW_SIZE                                              \
+    (16 + MAX_APPLICATION_NAME + MAX_APPLICATION_VERSION +                     \
+     MAX_APPLICATION_PUBLISHER)
 
 #define MAX_REG_KEY_NAME (255)
 
@@ -30,18 +32,23 @@ typedef struct _ApplicationTree {
 } applications_ApplicationTree;
 
 LPCSTR applications_PrettyApplication(applications_Application *a, LPSTR out) {
-    snprintf(out, MAX_APPLICATIONS_ROW_SIZE, "%s\t%s\t%s\t%s", a->Name, a->Version, a->Publisher, applications_PrettyArch(a->Architecture));
+    snprintf(out, MAX_APPLICATIONS_ROW_SIZE, "%s\t%s\t%s\t%s", a->Name,
+             a->Version, a->Publisher,
+             applications_PrettyArch(a->Architecture));
     return out;
 }
 
 // Returns root, or t if root is NULL
-applications_ApplicationTree *applications_TreeInsert(applications_ApplicationTree *root, applications_ApplicationTree *t) {
+applications_ApplicationTree *
+applications_TreeInsert(applications_ApplicationTree *root,
+                        applications_ApplicationTree *t) {
     if (root == NULL) {
         return t;
     }
 
     int tComp = strncmp(t->Value.Name, root->Value.Name, MAX_APPLICATION_NAME);
-    tComp = tComp ? tComp : (int)(t->Value.Architecture - root->Value.Architecture);
+    tComp =
+        tComp ? tComp : (int)(t->Value.Architecture - root->Value.Architecture);
     applications_ApplicationTree **direction;
     if (tComp < 0) {
         direction = &root->Left;
@@ -62,26 +69,36 @@ applications_ApplicationTree *applications_TreeInsert(applications_ApplicationTr
     return root;
 }
 
-void applications_TreeTraverseAppend(applications_ApplicationTree *t, clog_Arena *a) {
+void applications_TreeTraverseAppend(applications_ApplicationTree *t,
+                                     clog_Arena *a) {
     if (t->Left != NULL) {
         applications_TreeTraverseAppend(t->Left, a);
     }
     CHAR applicationBuf[MAX_APPLICATIONS_ROW_SIZE];
-    clog_ArenaAppend(a, "\n%s", applications_PrettyApplication(&t->Value, applicationBuf));
+    clog_ArenaAppend(a, "\n%s",
+                     applications_PrettyApplication(&t->Value, applicationBuf));
     if (t->Right != NULL) {
         applications_TreeTraverseAppend(t->Right, a);
     }
 }
 
-applications_ApplicationTree *applications_InsertApplications(applications_ApplicationTree *root, applications_Arch arch, clog_Arena *a) {
+applications_ApplicationTree *
+applications_InsertApplications(applications_ApplicationTree *root,
+                                applications_Arch arch, clog_Arena *a) {
     HKEY hKey;
     DWORD openStatus;
     switch (arch) {
     case x86_32:
-        openStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", 0, KEY_READ /*| KEY_WOW64_32KEY*/, &hKey);
+        openStatus = RegOpenKeyEx(
+            HKEY_LOCAL_MACHINE,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", 0,
+            KEY_READ /*| KEY_WOW64_32KEY*/, &hKey);
         break;
     case x86_64:
-        openStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall", 0, KEY_READ | KEY_WOW64_64KEY, &hKey);
+        openStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                                  "Software\\WOW6432Node\\Microsoft\\Windows\\C"
+                                  "urrentVersion\\Uninstall",
+                                  0, KEY_READ | KEY_WOW64_64KEY, &hKey);
         break;
     default:
         clog_ArenaAppend(a, "\nError: Unknown architecture (%d).", arch);
@@ -97,38 +114,57 @@ applications_ApplicationTree *applications_InsertApplications(applications_Appli
     DWORD ix = 0;
     CHAR regKeyName[MAX_REG_KEY_NAME];
     DWORD regKeyNameLen = MAX_REG_KEY_NAME;
-    DWORD enumStatus = RegEnumKeyEx(hKey, ix, regKeyName, &regKeyNameLen, 0, NULL, NULL, NULL);
+    DWORD enumStatus =
+        RegEnumKeyEx(hKey, ix, regKeyName, &regKeyNameLen, 0, NULL, NULL, NULL);
 
-    DWORD displayNameBufSize = MAX_PATH, displayVersionBufSize = 255, publisherBufSize = 255, bufsize;
-    CHAR displayName[MAX_PATH], displayVersion[displayVersionBufSize], publisherName[publisherBufSize];
+    DWORD displayNameBufSize = MAX_PATH, displayVersionBufSize = 255,
+          publisherBufSize = 255, bufsize;
+    CHAR displayName[MAX_PATH], displayVersion[displayVersionBufSize],
+        publisherName[publisherBufSize];
     while (enumStatus == ERROR_SUCCESS) {
         bufsize = displayNameBufSize;
-        DWORD nameStatus = RegGetValueA(hKey, regKeyName, "DisplayName", RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ | RRF_RT_REG_EXPAND_SZ, NULL, displayName, &bufsize);
+        DWORD nameStatus = RegGetValueA(hKey, regKeyName, "DisplayName",
+                                        RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ |
+                                            RRF_RT_REG_EXPAND_SZ,
+                                        NULL, displayName, &bufsize);
 
         bufsize = displayVersionBufSize;
-        DWORD versionStatus = RegGetValueA(hKey, regKeyName, "DisplayVersion", RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ | RRF_RT_REG_EXPAND_SZ, NULL, displayVersion, &bufsize);
+        DWORD versionStatus = RegGetValueA(hKey, regKeyName, "DisplayVersion",
+                                           RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ |
+                                               RRF_RT_REG_EXPAND_SZ,
+                                           NULL, displayVersion, &bufsize);
 
         bufsize = publisherBufSize;
-        DWORD publisherStatus = RegGetValueA(hKey, regKeyName, "Publisher", RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ | RRF_RT_REG_EXPAND_SZ, NULL, publisherName, &bufsize);
+        DWORD publisherStatus = RegGetValueA(
+            hKey, regKeyName, "Publisher",
+            RRF_RT_REG_SZ | RRF_RT_REG_MULTI_SZ | RRF_RT_REG_EXPAND_SZ, NULL,
+            publisherName, &bufsize);
 
-        if (versionStatus == ERROR_SUCCESS || publisherStatus == ERROR_SUCCESS) {
-            applications_ApplicationTree *app = clog_ArenaAlloc(a, applications_ApplicationTree, 1);
+        if (versionStatus == ERROR_SUCCESS ||
+            publisherStatus == ERROR_SUCCESS) {
+            applications_ApplicationTree *app =
+                clog_ArenaAlloc(a, applications_ApplicationTree, 1);
 
             CHAR *name = nameStatus == ERROR_SUCCESS ? displayName : regKeyName;
             clog_utils_ClampString(name, app->Value.Name, MAX_APPLICATION_NAME);
 
-            CHAR *version = versionStatus == ERROR_SUCCESS ? displayVersion : "-";
-            clog_utils_ClampString(version, app->Value.Version, MAX_APPLICATION_VERSION);
+            CHAR *version =
+                versionStatus == ERROR_SUCCESS ? displayVersion : "-";
+            clog_utils_ClampString(version, app->Value.Version,
+                                   MAX_APPLICATION_VERSION);
 
-            CHAR *publisher = publisherStatus == ERROR_SUCCESS ? publisherName : "-";
-            clog_utils_ClampString(publisher, app->Value.Publisher, MAX_APPLICATION_PUBLISHER);
+            CHAR *publisher =
+                publisherStatus == ERROR_SUCCESS ? publisherName : "-";
+            clog_utils_ClampString(publisher, app->Value.Publisher,
+                                   MAX_APPLICATION_PUBLISHER);
 
             app->Value.Architecture = arch;
 
             root = applications_TreeInsert(root, app);
         }
         regKeyNameLen = MAX_REG_KEY_NAME;
-        enumStatus = RegEnumKeyEx(hKey, ++ix, regKeyName, &regKeyNameLen, 0, NULL, NULL, NULL);
+        enumStatus = RegEnumKeyEx(hKey, ++ix, regKeyName, &regKeyNameLen, 0,
+                                  NULL, NULL, NULL);
     }
 
     return root;
@@ -136,9 +172,11 @@ applications_ApplicationTree *applications_InsertApplications(applications_Appli
 
 void clog_applications(clog_Arena scratch) {
     applications_ApplicationTree *applications = NULL;
-    applications = applications_InsertApplications(applications, x86_32, &scratch);
+    applications =
+        applications_InsertApplications(applications, x86_32, &scratch);
     clog_PopDeferAll(&scratch);
-    applications = applications_InsertApplications(applications, x86_64, &scratch);
+    applications =
+        applications_InsertApplications(applications, x86_64, &scratch);
     clog_PopDeferAll(&scratch);
 
     clog_ArenaAppend(&scratch, "[applications]");
