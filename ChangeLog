@@ -1,3 +1,12 @@
+2026-10-19 ntp-skew reports real alert status and tracks failed checks
+    The test is no longer always sent as green. The computed color from
+    the worst offset and time-jump events is now what gets sent.
+    A single failed check stays at the previous color; two or more
+    consecutive failures turn the status yellow, and the counter resets
+    on a successful check or when no_ntp_skew is set.
+    Successful checks also emit ntp_<peer> offset lines in a pre block
+    for graphing.
+
 2026-10-13 Release MrBig-0.26.7-rc4
 
 2026-10-12 Config to change location of cfg.cache
