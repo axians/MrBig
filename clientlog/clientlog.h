@@ -8,8 +8,9 @@
 #define STR(x) STR__IMPL(x) // indirection to expand macros in x
 #define lengthof(x) (sizeof(x) / sizeof(*(x)))
 
-#define LOG_DEBUG(...) \
-    if (clog_mrlog) clog_mrlog("\n" __VA_ARGS__);
+#define LOG_DEBUG(...)                                                         \
+    if (clog_mrlog)                                                            \
+        clog_mrlog("\n" __VA_ARGS__);
 extern void (*clog_mrlog)(char *fmt, ...);
 
 /* startup args context */
@@ -28,9 +29,11 @@ enum clog_utils_PrettyTimestampFlags {
     clog_utils_TIMESTAMP_CLOCK,
     clog_utils_TIMESTAMP_DATETIME,
 };
-LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out, size_t outSize);
+LPSTR clog_utils_PrettySystemtime(SYSTEMTIME *t, UINT8 flags, LPSTR out,
+                                  size_t outSize);
 DWORD clog_utils_RunCmdSynchronously(CHAR *cmdline, clog_Arena scratch);
-DWORD clog_utils_RunCmdSynchronouslyToBuffer(CHAR *cmdline, CHAR *buffer, size_t bufferSize);
+DWORD clog_utils_RunCmdSynchronouslyToBuffer(CHAR *cmdline, CHAR *buffer,
+                                             size_t bufferSize);
 void clog_utils_TrimTrailingNewlines(clog_Arena *scratch, BYTE *from);
 typedef BOOL (*clog_utils_ConfigSectionLineFn)(const CHAR *path, DWORD lineNo,
                                                const CHAR *line, void *ctx);

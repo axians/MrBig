@@ -24,7 +24,8 @@ LPSTR certificates_PrettyEKUPurposes(CHAR **eku, LPSTR out, size_t outSize) {
             if (i != 0 && outSize - written > 1) {
                 out[written++] = ',';
             }
-            written += snprintf(&out[written], outSize - written, "%s", eku[i++]);
+            written +=
+                snprintf(&out[written], outSize - written, "%s", eku[i++]);
         }
     } else {
         snprintf(out, outSize, "None");
@@ -50,29 +51,30 @@ LPSTR certificates_PrettyCertificate(Certificate *c, LPSTR out) {
              "\nFinger Print:       \t%s"
              "\nSerial Number:      \t%s",
              c->FriendlyName,
-             clog_utils_PrettySystemtime(&validFrom, clog_utils_TIMESTAMP_DATETIME, validFromBuf, 64),
-             clog_utils_PrettySystemtime(&validTo, clog_utils_TIMESTAMP_DATETIME, validToBuf, 64),
-             c->StoreLocation,
-             c->Subject,
-             c->Issuer,
+             clog_utils_PrettySystemtime(
+                 &validFrom, clog_utils_TIMESTAMP_DATETIME, validFromBuf, 64),
+             clog_utils_PrettySystemtime(
+                 &validTo, clog_utils_TIMESTAMP_DATETIME, validToBuf, 64),
+             c->StoreLocation, c->Subject, c->Issuer,
              certificates_PrettyEKUPurposes(c->EKUPurposes, eku, sizeof(eku)),
-             c->PublicKeySize,
-             c->SignatureAlgorithm,
-             c->Fingerprint,
+             c->PublicKeySize, c->SignatureAlgorithm, c->Fingerprint,
              c->SerialNumber);
     return out;
 }
 
 size_t certificates_GetOIDName(CHAR *oID, CHAR *out, size_t outSize) {
     size_t written = 0;
-    const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
+    const CRYPT_OID_INFO *oIDInfo = CryptFindOIDInfo(
+        CRYPT_OID_INFO_OID_KEY, oID, CRYPT_OID_DISABLE_SEARCH_DS_FLAG);
     if (!oIDInfo) {
         // Unknown OID;
         out[0] = '\0';
         return written;
     }
 
-    LOG_DEBUG("\tcertificates.c: \t\tLookup of OID %s successful, getting readable name.", oID);
+    LOG_DEBUG("\tcertificates.c: \t\tLookup of OID %s successful, getting "
+              "readable name.",
+              oID);
     written = wcstombs(out, oIDInfo->pwszName, outSize - 1);
     if (written > outSize || written <= 0) {
         LOG_DEBUG("\tcertificates.c: \t\tUnreadable character in name.", oID);
@@ -87,14 +89,21 @@ CHAR **certificates_GetEKUPurposes(CERT_INFO *ctx, clog_Arena *a) {
     CHAR **res = NULL;
     for (DWORD i = 0; i < ctx->cExtension; i++) {
         CERT_EXTENSION *ext = &ctx->rgExtension[i];
-        if (strcmp(ext->pszObjId, szOID_ENHANCED_KEY_USAGE) != 0) continue;
+        if (strcmp(ext->pszObjId, szOID_ENHANCED_KEY_USAGE) != 0)
+            continue;
 
-        LOG_DEBUG("\tcertificates.c: \t\tFound EKU purposes OID, decrypting object.");
+        LOG_DEBUG(
+            "\tcertificates.c: \t\tFound EKU purposes OID, decrypting object.");
         DWORD decodedSize = 0;
-        CryptDecodeObjectEx(X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE, ext->Value.pbData, ext->Value.cbData, CRYPT_DECODE_NOCOPY_FLAG, NULL, NULL, &decodedSize);
+        CryptDecodeObjectEx(X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE,
+                            ext->Value.pbData, ext->Value.cbData,
+                            CRYPT_DECODE_NOCOPY_FLAG, NULL, NULL, &decodedSize);
 
         BYTE decodedData[decodedSize];
-        WINBOOL success = CryptDecodeObjectEx(X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE, ext->Value.pbData, ext->Value.cbData, CRYPT_DECODE_NOCOPY_FLAG, NULL, decodedData, &decodedSize);
+        WINBOOL success = CryptDecodeObjectEx(
+            X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE, ext->Value.pbData,
+            ext->Value.cbData, CRYPT_DECODE_NOCOPY_FLAG, NULL, decodedData,
+            &decodedSize);
 
         if (!success) {
             res = clog_ArenaAlloc(a, CHAR *, 2);
@@ -137,7 +146,9 @@ void clog_certificates(clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[certificates]");
 
     LOG_DEBUG("\tcertificates.c: Opening certificate store.");
-    HCERTSTORE hStore = CertOpenStore(CERT_STORE_PROV_SYSTEM_A, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, CERT_SYSTEM_STORE_LOCAL_MACHINE | CERT_STORE_READONLY_FLAG, "My");
+    HCERTSTORE hStore = CertOpenStore(
+        CERT_STORE_PROV_SYSTEM_A, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0,
+        CERT_SYSTEM_STORE_LOCAL_MACHINE | CERT_STORE_READONLY_FLAG, "My");
     clog_Defer(&scratch, hStore, RETURN_INT, &CertCloseStoreWrapper);
 
     // HCERTSTORE hStore = CertOpenSystemStoreA(0, storeLocation);
@@ -150,35 +161,51 @@ void clog_certificates(clog_Arena scratch) {
     while ((ctx = CertEnumCertificatesInStore(hStore, ctx))) {
         LOG_DEBUG("\tcertificates.c: Start of certificate enumeration.");
 
-        clog_Defer(&scratch, (void *)ctx, RETURN_INT, &CertFreeCertificateContext);
+        clog_Defer(&scratch, (void *)ctx, RETURN_INT,
+                   &CertFreeCertificateContext);
         numCertificates++;
         Certificate c = {0};
 
         // Friendly Name
-        DWORD getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
+        DWORD getNameStringType =
+            CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
         LOG_DEBUG("\tcertificates.c: \tGetting RDN friendly name.");
-        DWORD friendlySize = CertGetNameStringA(ctx, CERT_NAME_FRIENDLY_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
+        DWORD friendlySize = CertGetNameStringA(
+            ctx, CERT_NAME_FRIENDLY_DISPLAY_TYPE,
+            CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
         c.FriendlyName = clog_ArenaAlloc(&scratch, void, friendlySize);
         LOG_DEBUG("\tcertificates.c: \tGetting RDN friendly name.");
-        CertGetNameStringA(ctx, CERT_NAME_FRIENDLY_DISPLAY_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, c.FriendlyName, friendlySize);
-        LOG_DEBUG("\tcertificates.c: \tRDN friendly name = '%s'.", c.FriendlyName);
+        CertGetNameStringA(ctx, CERT_NAME_FRIENDLY_DISPLAY_TYPE,
+                           CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType,
+                           c.FriendlyName, friendlySize);
+        LOG_DEBUG("\tcertificates.c: \tRDN friendly name = '%s'.",
+                  c.FriendlyName);
 
         // Subject
         getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
         LOG_DEBUG("\tcertificates.c: \tGetting subject RDN size.");
-        DWORD subjectSize = CertGetNameStringA(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
+        DWORD subjectSize = CertGetNameStringA(ctx, CERT_NAME_RDN_TYPE,
+                                               CERT_NAME_DISABLE_IE4_UTF8_FLAG,
+                                               &getNameStringType, NULL, 0);
         c.Subject = clog_ArenaAlloc(&scratch, void, subjectSize);
         LOG_DEBUG("\tcertificates.c: \tGetting subject RDN.");
-        CertGetNameString(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, c.Subject, subjectSize);
+        CertGetNameString(ctx, CERT_NAME_RDN_TYPE,
+                          CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType,
+                          c.Subject, subjectSize);
         LOG_DEBUG("\tcertificates.c: \tSubject RDN = '%s'.", c.Subject);
 
         // Issued By
         getNameStringType = CERT_X500_NAME_STR | CERT_NAME_STR_REVERSE_FLAG;
         LOG_DEBUG("\tcertificates.c: \tGetting issuer RDN size.");
-        DWORD issuerSize = CertGetNameStringA(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_ISSUER_FLAG | CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, NULL, 0);
+        DWORD issuerSize = CertGetNameStringA(
+            ctx, CERT_NAME_RDN_TYPE,
+            CERT_NAME_ISSUER_FLAG | CERT_NAME_DISABLE_IE4_UTF8_FLAG,
+            &getNameStringType, NULL, 0);
         c.Issuer = clog_ArenaAlloc(&scratch, void, issuerSize);
         LOG_DEBUG("\tcertificates.c: \tGetting issuer RD.");
-        CertGetNameString(ctx, CERT_NAME_RDN_TYPE, CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType, c.Issuer, issuerSize);
+        CertGetNameString(ctx, CERT_NAME_RDN_TYPE,
+                          CERT_NAME_DISABLE_IE4_UTF8_FLAG, &getNameStringType,
+                          c.Issuer, issuerSize);
         LOG_DEBUG("\tcertificates.c: \tIssuer RDN = '%s'.", c.Issuer);
 
         // Intended Purposes
@@ -187,7 +214,8 @@ void clog_certificates(clog_Arena scratch) {
 
         // Signature Algorithm
         CHAR algoBuf[64];
-        size_t algoLen = certificates_GetOIDName(ctx->pCertInfo->SignatureAlgorithm.pszObjId, algoBuf, 64);
+        size_t algoLen = certificates_GetOIDName(
+            ctx->pCertInfo->SignatureAlgorithm.pszObjId, algoBuf, 64);
         if (algoLen <= 0)
             c.SignatureAlgorithm = "<unknown>";
         else {
@@ -201,10 +229,12 @@ void clog_certificates(clog_Arena scratch) {
         BYTE fingerprintHash[64] = {0};
         DWORD fingeprintSize = sizeof(fingerprintHash);
         CHAR fingerprintHex[128] = "";
-        if (CertGetCertificateContextProperty(ctx, CERT_HASH_PROP_ID, fingerprintHash, &fingeprintSize)) {
+        if (CertGetCertificateContextProperty(
+                ctx, CERT_HASH_PROP_ID, fingerprintHash, &fingeprintSize)) {
             size_t written = 0;
             for (int i = 0; i < fingeprintSize; i++) {
-                written += sprintf(&fingerprintHex[written], "%02x", fingerprintHash[i]);
+                written += sprintf(&fingerprintHex[written], "%02x",
+                                   fingerprintHash[i]);
             }
         }
         c.Fingerprint = fingerprintHex;
@@ -213,7 +243,8 @@ void clog_certificates(clog_Arena scratch) {
         CHAR serialHex[128] = "";
         size_t serialWritten = 0;
         for (int i = ctx->pCertInfo->SerialNumber.cbData - 1; i >= 0; i--) {
-            serialWritten += sprintf(&serialHex[serialWritten], "%02x", ctx->pCertInfo->SerialNumber.pbData[i]);
+            serialWritten += sprintf(&serialHex[serialWritten], "%02x",
+                                     ctx->pCertInfo->SerialNumber.pbData[i]);
         }
         c.SerialNumber = serialHex;
 
@@ -222,15 +253,19 @@ void clog_certificates(clog_Arena scratch) {
         c.NotBefore = ctx->pCertInfo->NotBefore;
         c.NotAfter = ctx->pCertInfo->NotAfter;
         c.StoreLocation = "Local Machine";
-        c.PublicKeySize = CertGetPublicKeyLength(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, &ctx->pCertInfo->SubjectPublicKeyInfo);
+        c.PublicKeySize =
+            CertGetPublicKeyLength(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                                   &ctx->pCertInfo->SubjectPublicKeyInfo);
 
         LOG_DEBUG("\tcertificates.c: \tPrinting cert to buffer.");
-        clog_ArenaAppend(&scratch, "%s\n", certificates_PrettyCertificate(&c, certificateBuf));
+        clog_ArenaAppend(&scratch, "%s\n",
+                         certificates_PrettyCertificate(&c, certificateBuf));
         LOG_DEBUG("\tcertificates.c: \tPrinted cert to buffer.");
         clog_IgnorePopDefer(&scratch);
     }
     if (numCertificates == 0) {
-        clog_ArenaAppend(&scratch, "\n(No certificates found in store '%s')", storeLocation);
+        clog_ArenaAppend(&scratch, "\n(No certificates found in store '%s')",
+                         storeLocation);
     }
     clog_utils_TrimTrailingNewlines(&scratch, NULL);
     clog_ArenaAppend(&scratch, "\n");

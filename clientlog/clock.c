@@ -3,10 +3,12 @@
 #include <windows.h>
 
 #define TIME_BUF_SIZE 64
-#define REG_VAL_SIZE  256
+#define REG_VAL_SIZE 256
 
-static void clock_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out, size_t outSize) {
-    if (outSize == 0) return;
+static void clock_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out,
+                                         size_t outSize) {
+    if (outSize == 0)
+        return;
 
     TIME_ZONE_INFORMATION tzi;
     DWORD tzStatus = GetTimeZoneInformation(&tzi);
@@ -25,23 +27,15 @@ static void clock_PrettyIso8601LocalTime(const SYSTEMTIME *t, CHAR *out, size_t 
         offsetMinutes = -offsetMinutes;
     }
 
-    snprintf(out,
-             outSize,
-             "%04u-%02u-%02uT%02u:%02u:%02u%c%02ld:%02ld",
-             t->wYear,
-             t->wMonth,
-             t->wDay,
-             t->wHour,
-             t->wMinute,
-             t->wSecond,
-             sign,
-             offsetMinutes / 60,
-             offsetMinutes % 60);
+    snprintf(out, outSize, "%04u-%02u-%02uT%02u:%02u:%02u%c%02ld:%02ld",
+             t->wYear, t->wMonth, t->wDay, t->wHour, t->wMinute, t->wSecond,
+             sign, offsetMinutes / 60, offsetMinutes % 60);
 }
 
 void clog_clock(clog_Arena scratch) {
     time_t unixtime = time(NULL);
-    struct tm *tm_time; // careful, pointers returned by localtime and gmtime point to the same memory
+    struct tm *tm_time; // careful, pointers returned by localtime and gmtime
+                        // point to the same memory
 
     SYSTEMTIME t;
     GetLocalTime(&t);
@@ -60,16 +54,18 @@ void clog_clock(clog_Arena scratch) {
     strftime(utcBuf, TIME_BUF_SIZE, "%Y-%m-%d %H:%M:%S", tm_time);
 
     /* Read NTP type and server from the W32Time registry key */
-    CHAR ntpType[REG_VAL_SIZE]   = "-";
+    CHAR ntpType[REG_VAL_SIZE] = "-";
     CHAR ntpServer[REG_VAL_SIZE] = "-";
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
-                      "SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters",
-                      0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExA(
+            HKEY_LOCAL_MACHINE,
+            "SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters", 0,
+            KEY_READ, &hKey) == ERROR_SUCCESS) {
         DWORD cbData = REG_VAL_SIZE;
-        RegQueryValueExA(hKey, "Type",      NULL, NULL, (LPBYTE)ntpType,   &cbData);
+        RegQueryValueExA(hKey, "Type", NULL, NULL, (LPBYTE)ntpType, &cbData);
         cbData = REG_VAL_SIZE;
-        RegQueryValueExA(hKey, "NtpServer", NULL, NULL, (LPBYTE)ntpServer, &cbData);
+        RegQueryValueExA(hKey, "NtpServer", NULL, NULL, (LPBYTE)ntpServer,
+                         &cbData);
         RegCloseKey(hKey);
     }
 
@@ -98,7 +94,8 @@ void clog_clock(clog_Arena scratch) {
     }
 
     if (w32timeRunning) {
-        clog_utils_RunCmdSynchronously("C:\\Windows\\System32\\w32tm.exe /query /status", scratch);
+        clog_utils_RunCmdSynchronously(
+            "C:\\Windows\\System32\\w32tm.exe /query /status", scratch);
     } else {
         clog_ArenaAppend(&scratch, "W32Time service is not running.\n");
     }
