@@ -532,8 +532,8 @@ void clog_processes_EndAppendQuery(processes_Handle h, clog_Arena *a) {
 void _processes(clog_Arena scratch) {
     /* This function should ideally not be used.
        It is better to separate the calls to processes_StartQuery and processes_EndAppendQuery,
-       since there is a 1 second timer on processes_EndAppendQuery. So we can process other
-       parts of clientlog in the meantime. */
+       since there is a 1 second timer on processes_EndAppendQuery. Note that work done in
+       between is counted in the sampled CPU usage of this process. */
 
     processes_Handle h = clog_processes_StartQuery(&scratch);
     /* BIIGHANDLE */
