@@ -48,9 +48,6 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
         return;
     }
 
-    LOG_DEBUG("Clientlog start processes query");
-    processes_Handle hProcesses = clog_processes_StartQuery(&arena);
-
     LOG_DEBUG("Clientlog start message");
     clog_ArenaAppend(&arena, "client %s.windows windows\n", mrmachine);
     clog_ArenaAppend(&arena, "\n");
@@ -101,6 +98,10 @@ void clientlog(char *mrmachine, void (*mrsend)(char *machine, char *message),
     RUN(clog_tcp_connections, arena);
     clog_ArenaAppend(&arena, "\n");
 
+    // The CPU sample window must not overlap other collection, or MrBig would
+    // measure its own work as high CPU usage. The window is spent idle instead.
+    LOG_DEBUG("Clientlog start processes query");
+    processes_Handle hProcesses = clog_processes_StartQuery(&arena);
     RUN(clog_processes_EndAppendQuery, hProcesses, &arena);
     clog_ArenaAppend(&arena, "\n");
 
