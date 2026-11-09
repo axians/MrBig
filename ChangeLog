@@ -1,3 +1,7 @@
+2026-11-09 High Cpu usage fix
+    MrBig was doing cpu sampling while some other clientlog sections were
+    computed. Now the sampling happens right before the processes section.
+
 2026-10-26 Release MrBig-0.26.7
 
 2026-10-19 Release MrBig-0.26.7-rc5
