@@ -153,6 +153,8 @@ void clog_reboots(DWORD maxNumReboots, clog_Arena scratch) {
     clog_ArenaAppend(&scratch, "[reboots]");
     if (numRebootsFound == 0) {
         clog_ArenaAppend(&scratch, "\n(No reboots found within the last %lu days)", MAX_EVENT_AGE / DAY);
+        clog_utils_TrimTrailingNewlines(&scratch, NULL);
+        clog_ArenaAppend(&scratch, "\n");
         return;
     };
 
