@@ -246,7 +246,7 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
     }
 
     DWORD bufsize = 0, numItems;
-    result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems, NULL);
+    result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_NOCAP100, &bufsize, &numItems, NULL);
     if (result.ErrorCode != PDH_MORE_DATA) {
         PdhCloseQuery(state->Query);
         return result;
@@ -258,7 +258,7 @@ processes_Table processes_AwaitSummarizeQuery(processes_State *state, clog_Arena
 
     PdhGetFormattedCounterArray(state->IDProcess, PDH_FMT_LONG, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)idProcesses);
     PdhGetFormattedCounterArray(state->WorkingSet, PDH_FMT_LARGE, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)workingSets);
-    result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_DOUBLE, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)processorTimes);
+    result.ErrorCode = PdhGetFormattedCounterArray(state->ProcessorTime, PDH_FMT_NOCAP100, &bufsize, &numItems, (PDH_FMT_COUNTERVALUE_ITEM *)processorTimes);
 
     if (result.ErrorCode == ERROR_SUCCESS) {
         result.NumRows = numItems;
