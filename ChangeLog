@@ -1,3 +1,7 @@
+2026-11-24 clientlog processes % past 100
+    the processes secttion can now show the usage % above 100% for
+    multi-threaded processes.
+
 2026-11-09 Release MrBig-0.26.8
 
 2026-11-09 High Cpu usage fix
